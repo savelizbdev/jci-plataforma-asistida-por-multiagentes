@@ -84,10 +84,10 @@ class MentorService:
             total_diagnosticos = len(diagnosticos)
             
             # 4. Calcular tasa de éxito
-            diagnosticos_valido = [d for d in diagnosticos if d.get("resultado") in ("ACEPTADO", "EXIMIDO", "RECHAZADO")]
+            diagnosticos_valido = [d for d in diagnosticos if d.get("resultado") in ("ACEPTADO", "APROBADO", "EXIMIDO", "RECHAZADO", "OBSERVADO")]
             total_validos = len(diagnosticos_valido)
             if total_validos > 0:
-                aceptados = sum(1 for d in diagnosticos_valido if d["resultado"] in ("ACEPTADO", "EXIMIDO"))
+                aceptados = sum(1 for d in diagnosticos_valido if d["resultado"] in ("ACEPTADO", "APROBADO", "EXIMIDO"))
                 tasa_exito = (aceptados / total_validos) * 100
             else:
                 tasa_exito = 0.0
@@ -463,11 +463,11 @@ class MentorService:
             ]
             puntaje_total = round(sum(all_area_scores) / len(all_area_scores))
 
-            # 9. Determinar resultado
-            if puntaje_total < 30:
-                resultado = "RECHAZADO"
-            elif puntaje_total <= 65:
-                resultado = "ACEPTADO"
+            # 9. Determinar resultado según Rúbrica IMESUN (OIT)
+            if puntaje_total <= 20:
+                resultado = "OBSERVADO"
+            elif puntaje_total <= 80:
+                resultado = "APROBADO"
             else:
                 resultado = "EXIMIDO"
 

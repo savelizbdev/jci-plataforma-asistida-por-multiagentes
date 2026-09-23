@@ -515,14 +515,17 @@ async def evaluar_area_ia(request: EvaluarAreaRequest):
         inconsistencias_acum = estado.get("todas_inconsistencias", [])
         inconsistencias_acum.extend(inconsistencias)
         
-        # Guardar nuevo estado en la sesión ADK
-        nuevo_estado = {**estado, "area_scores": area_scores, "todas_inconsistencias": inconsistencias_acum}
-        async with httpx.AsyncClient() as client:
-            await client.patch(
-                session_url,
-                json={"state": nuevo_estado},
-                timeout=10.0
-            )
+        # Guardar nuevo estado en la sesión ADK (Google ADK requiere el campo 'state_delta')
+        nuevo_estado = {"area_scores": area_scores, "todas_inconsistencias": inconsistencias_acum}
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.patch(
+                    session_url,
+                    json={"state_delta": nuevo_estado},
+                    timeout=10.0
+                )
+        except Exception as e_patch:
+            print(f"[WARN] Error al actualizar estado de sesión en ADK: {e_patch}")
         
         # Guardar detalles en la DB
         if id_diagnostico:
@@ -599,14 +602,14 @@ async def obtener_resultados_ia(request: ResultadosRequest):
             if col:
                 area_scores_db[col] = float(promedio)
 
-        # 2. Calcular puntaje total
+        # 2. Calcular puntaje total según Rúbrica IMESUN (OIT)
         score_values = list(area_scores_db.values())
         puntaje_total = round(sum(score_values) / len(score_values)) if score_values else 0
         
-        if puntaje_total < 30:
-            resultado_final = "RECHAZADO"
-        elif puntaje_total <= 65:
-            resultado_final = "ACEPTADO"
+        if puntaje_total <= 20:
+            resultado_final = "OBSERVADO"
+        elif puntaje_total <= 80:
+            resultado_final = "APROBADO"
         else:
             resultado_final = "EXIMIDO"
             
@@ -625,13 +628,43 @@ async def obtener_resultados_ia(request: ResultadosRequest):
         except Exception as e:
             print(f"[WARN] No se pudo leer sesión ADK: {e}")
 
-        # 4. Generar conclusión + recomendaciones via ADK
+        # 3. Recopilar todas las respuestas completas para la Auditoría Global de Inconsistencias
+        respuestas_completas = []
+        if id_diagnostico:
+            try:
+                from app.services.supabase_client import get_supabase_client
+                from app.services.pregunta_service import PreguntaService
+                supabase = get_supabase_client()
+                detalles_resp = (
+                    supabase.table("detalle_diagnostico")
+                    .select("id_pregunta, respuesta_usuario, puntaje")
+                    .eq("id_diagnostico", id_diagnostico)
+                    .execute()
+                )
+                pregunta_service = PreguntaService()
+                preguntas_db = await pregunta_service.get_all_active_preguntas()
+                preg_map = {p.id_pregunta: p for p in preguntas_db}
+
+                for d in (detalles_resp.data or []):
+                    p_info = preg_map.get(d["id_pregunta"])
+                    respuestas_completas.append({
+                        "id_pregunta": d["id_pregunta"],
+                        "area": p_info.nombre_area if p_info else "Desconocida",
+                        "enunciado": p_info.enunciado if p_info else "",
+                        "respuesta": d.get("respuesta_usuario", ""),
+                        "puntaje": d.get("puntaje", 0),
+                    })
+            except Exception as e_resp:
+                print(f"[WARN] No se pudieron compilar respuestas completas para auditoría: {e_resp}")
+
+        # 4. Generar conclusión + recomendaciones + auditoría de inconsistencias via ADK
         contexto_resultados = json.dumps({
             "area_scores": area_scores_db,
             "puntaje_total": puntaje_total,
             "resultado": resultado_final,
-            "inconsistencias": todas_inconsistencias,
             "contexto": contexto_emp,
+            "inconsistencias_previas": todas_inconsistencias,
+            "respuestas_completas": respuestas_completas,
         }, ensure_ascii=False)
         mensaje = f"GENERAR_RESULTADOS:{contexto_resultados}"
         respuesta = await _send_to_adk(request.user_id, request.session_id, mensaje, timeout=120.0)
@@ -639,6 +672,7 @@ async def obtener_resultados_ia(request: ResultadosRequest):
         # 5. Parsear respuesta del ADK
         conclusion = ""
         recomendaciones = ""
+        inconsistencias_auditadas = []
         mensaje_despedida = "Gracias por completar el diagnóstico. Un mentor se comunicará contigo a la brevedad para revisar tus resultados. ¡Mucho ánimo!"
         try:
             clean = respuesta.strip()
@@ -648,6 +682,7 @@ async def obtener_resultados_ia(request: ResultadosRequest):
             resultado_json = json.loads(clean)
             conclusion = resultado_json.get("conclusion", "")
             recomendaciones = resultado_json.get("recomendaciones", "")
+            inconsistencias_auditadas = resultado_json.get("inconsistencias", [])
             mensaje_despedida = resultado_json.get(
                 "mensaje_despedida",
                 mensaje_despedida
@@ -655,16 +690,38 @@ async def obtener_resultados_ia(request: ResultadosRequest):
         except (json.JSONDecodeError, IndexError):
             conclusion = respuesta
         
-        # 5. Guardar TODOS los resultados en la DB
+        # 6. Formatear inconsistencias detectadas en Markdown estructurado
+        bloques_inconsistencias = []
+        if isinstance(inconsistencias_auditadas, list):
+            for i, inc in enumerate(inconsistencias_auditadas, 1):
+                if isinstance(inc, dict):
+                    tipo = inc.get("tipo", "Observación")
+                    desc = inc.get("descripcion", "")
+                    evid = inc.get("evidencia", "")
+                    bloques_inconsistencias.append(
+                        f"### ⚠️ Observación {i} ({tipo}): {desc}\n\n"
+                        f"* **Contraste detectado:** {evid}\n"
+                        f"* **Recomendación para el mentor:** Indagar este punto en la entrevista para contrastar la información."
+                    )
+                elif isinstance(inc, str) and inc.strip():
+                    bloques_inconsistencias.append(f"### ⚠️ Observación {i}\n\n* **Detalle:** {inc.strip()}")
+
+        # Si no hubo en la auditoría final pero sí en las áreas previas
+        if not bloques_inconsistencias and todas_inconsistencias:
+            for i, inc in enumerate(todas_inconsistencias, 1):
+                if isinstance(inc, str) and inc.strip():
+                    bloques_inconsistencias.append(f"### ⚠️ Observación {i}\n\n* **Detalle:** {inc.strip()}")
+
+        inconsistencias_texto = (
+            "> **Auditoría de Coherencia:** No se detectaron inconsistencias significativas ni contradicciones entre las respuestas del emprendedor y los datos financieros iniciales declarados."
+            if not bloques_inconsistencias
+            else "\n\n---\n\n".join(bloques_inconsistencias)
+        )
+
+        # 7. Guardar TODOS los resultados en la DB
         if id_diagnostico:
             diagnostico_service = DiagnosticoService()
             from app.models.diagnostico import DiagnosticoUpdate
-            
-            inconsistencias_texto = (
-                "No se detectaron inconsistencias en las respuestas del emprendedor."
-                if not todas_inconsistencias
-                else "\n".join(f"- {i}" for i in todas_inconsistencias)
-            )
             
             update_data = DiagnosticoUpdate(
                 puntaje_total=Decimal(str(puntaje_total)),

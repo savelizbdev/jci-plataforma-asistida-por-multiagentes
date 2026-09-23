@@ -42,7 +42,7 @@ ChartJS.register(
 
 // Helper: color por resultado
 const getResultadoColor = (resultado: string) => {
-    if (resultado === 'ACEPTADO') return { text: 'text-activa-teal', bg: 'bg-activa-teal/10', border: 'border-activa-teal/40', badge: 'bg-activa-teal text-white' };
+    if (resultado === 'ACEPTADO' || resultado === 'APROBADO') return { text: 'text-activa-teal', bg: 'bg-activa-teal/10', border: 'border-activa-teal/40', badge: 'bg-activa-teal text-white' };
     if (resultado === 'EXIMIDO')  return { text: 'text-jci-blue',    bg: 'bg-jci-blue/10',    border: 'border-jci-blue/40',    badge: 'bg-jci-blue text-white' };
     return                               { text: 'text-red-500',      bg: 'bg-red-50',         border: 'border-red-200',       badge: 'bg-red-500 text-white' };
 };
@@ -360,7 +360,7 @@ export const ResultadosDiagnostico = () => {
                 borderColor: '#3AADA8',
                 backgroundColor: 'rgba(58, 173, 168, 0.1)',
                 pointBackgroundColor: historicoDiags.map(d =>
-                    d.resultado === 'ACEPTADO' ? '#3AADA8' :
+                    (d.resultado === 'ACEPTADO' || d.resultado === 'APROBADO') ? '#3AADA8' :
                     d.resultado === 'EXIMIDO'  ? '#00AEEF' :
                     '#EF4444'
                 ),
@@ -630,9 +630,9 @@ export const ResultadosDiagnostico = () => {
                                     <span className="ml-auto text-xs text-neutral-400">Hasta diagnóstico #{selectedDiag.numero}</span>
                                 </div>
                                 <div className="flex gap-3 mb-2 text-xs text-neutral-500">
-                                    <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-activa-teal"></span>Aceptado</span>
+                                    <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-activa-teal"></span>Aprobado</span>
                                     <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-jci-blue"></span>Eximido</span>
-                                    <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500"></span>Rechazado</span>
+                                    <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-red-500"></span>Observado</span>
                                 </div>
                                 <div className="h-44">
                                     <Line data={historicoData} options={historicoOptions as any} />
