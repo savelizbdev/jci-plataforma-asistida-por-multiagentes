@@ -90,11 +90,29 @@ class ReporteEmprendedorRequest(BaseModel):
     id_emprendedor: str
 
 
+class SeccionItem(BaseModel):
+    area: str = ""
+    texto: str = ""
+
+
+class RecomendacionItem(BaseModel):
+    titulo: str = ""
+    objetivo: str = ""
+    acciones: List[str] = []
+    impacto: str = ""
+
+
 class ReporteDataEmprendedor(BaseModel):
     nombre_emprendedor: str
     apellido_emprendedor: str
     nombre_emprendimiento: str
     rubro: str
+    resultado: str = "APROBADO"
+    fecha_diagnostico: Optional[datetime] = None
+    diagnostico_general: str = ""
+    fortalezas: List[SeccionItem] = []
+    debilidades: List[SeccionItem] = []
+    recomendaciones: List[RecomendacionItem] = []
     estadisticas_actuales: EstadisticasGlobales
     diagnosticos_timeline: List[DiagnosticoPorFecha]
 

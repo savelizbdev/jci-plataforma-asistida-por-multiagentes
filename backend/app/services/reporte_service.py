@@ -4,6 +4,7 @@ Maneja la creación de reportes PDF con gráficos
 """
 import io
 import os
+import re
 import tempfile
 from datetime import datetime
 from typing import List
@@ -34,6 +35,8 @@ from app.models.reporte import (
     DiagnosticoPorFecha,
     ReporteEmprendedorRequest,
     ReporteDataEmprendedor,
+    SeccionItem,
+    RecomendacionItem,
     ReporteDataMentor,
     MentorResumenReporte,
     ReporteDataTodosMentores,
@@ -784,7 +787,7 @@ class ReporteService:
             story.append(Paragraph("2. ESTADÍSTICAS GLOBALES POR ÁREA", s['section']))
             story.append(Paragraph(
                 "A continuación se detallan los promedios obtenidos en cada una de las "
-                "siete áreas de evaluación del diagnóstico empresarial. Estos valores "
+                "siete áreas de evaluación del diagnóstico. Estos valores "
                 "representan el promedio general de todos los emprendedores evaluados "
                 "en el período indicado.",
                 s['body']))
@@ -935,6 +938,261 @@ class ReporteService:
             )
 
 
+    # ── Métodos auxiliares para Reporte Individual Emprendedor ──
+
+    @staticmethod
+    def _clean_text_for_reportlab(text: str) -> str:
+        """Elimina emojis y caracteres especiales no compatibles con fuentes estándar de ReportLab."""
+        if not text:
+            return ""
+        emoji_pattern = re.compile(
+            "[\U00010000-\U0010ffff]|[\u200d\u200c\u200b\ufeff\u2028\u2029]|"
+            "[\u2600-\u26ff]|[\u2700-\u27bf]|[\u2300-\u23ff]|[\u2b50]|[\u3030]|[\u00a9\u00ae]",
+            flags=re.UNICODE
+        )
+        clean = emoji_pattern.sub('', text)
+        clean = clean.replace('“', '"').replace('”', '"').replace('’', "'").replace('‘', "'")
+        clean = clean.replace('–', '-').replace('—', '-')
+        return clean.strip()
+
+    @staticmethod
+    def _markdown_to_reportlab(text: str) -> str:
+        """Convierte negrita y cursiva básica a etiquetas compatibles con Paragraph de ReportLab."""
+        if not text:
+            return ""
+        clean = ReporteService._clean_text_for_reportlab(text)
+        clean = re.sub(r'&(?!amp;|lt;|gt;|quot;|apos;)', '&amp;', clean)
+        clean = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', clean)
+        clean = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', clean)
+        return clean
+
+    @staticmethod
+    def _get_imesun_nivel(puntaje: float) -> tuple[str, str]:
+        """Retorna (Nivel, Descripción) según la escala IMESUN de la OIT."""
+        puntaje = float(puntaje or 0)
+        if puntaje <= 20:
+            return "Nivel 1", "Inicial / Crítico"
+        elif puntaje <= 40:
+            return "Nivel 2", "Básico"
+        elif puntaje <= 60:
+            return "Nivel 3", "En Desarrollo"
+        elif puntaje <= 80:
+            return "Nivel 4", "Establecido"
+        else:
+            return "Nivel 5", "Consolidado"
+
+    def _parse_conclusion(self, text: str):
+        """Separa el texto de conclusión en Diagnóstico General, Fortalezas y Debilidades.
+        Excluye estrictamente cualquier sección referente al mentor o sesiones de mentoría."""
+        if not text:
+            return "", [], []
+
+        diag_gen = ""
+        fortalezas = []
+        debilidades = []
+
+        sections = re.split(r'\n(?=#{2,3}\s+)', text)
+        for sec in sections:
+            sec = sec.strip()
+            if not sec:
+                continue
+            first_line = sec.split('\n')[0].lower()
+            content = '\n'.join(sec.split('\n')[1:]).strip()
+
+            # Excluir estrictamente enfoque de mentoría
+            if any(w in first_line for w in ['mentor', 'sesión', 'sesion', 'enfoque']):
+                continue
+
+            if any(w in first_line for w in ['diagnóstico general', 'diagnostico general', 'madurez']):
+                diag_gen = content
+            elif 'fortaleza' in first_line:
+                fortalezas = self._parse_bullet_items(content)
+            elif any(w in first_line for w in ['oportunidad', 'debilidad', 'crítica', 'critica']):
+                debilidades = self._parse_bullet_items(content)
+            elif not diag_gen:
+                diag_gen = sec
+
+        return diag_gen, fortalezas, debilidades
+
+    def _parse_bullet_items(self, content: str) -> List[SeccionItem]:
+        """Extrae viñetas estructuradas con área y texto."""
+        items = []
+        if not content:
+            return items
+        lines = content.split('\n')
+        current_area = ''
+        current_text = ''
+        for line in lines:
+            line_s = line.strip()
+            if not line_s:
+                continue
+            m = re.match(r'^[\*\-\d\.]+\s*(?:\*\*(.+?)\*\*[:\s]*)?(.*)$', line_s)
+            if m and (m.group(1) or line_s.startswith(('*', '-', '1', '2', '3', '4', '5'))):
+                if current_text:
+                    items.append(SeccionItem(area=current_area, texto=current_text))
+                current_area = (m.group(1) or '').strip()
+                current_text = (m.group(2) or '').strip()
+            else:
+                if current_text:
+                    current_text += ' ' + line_s
+                else:
+                    current_text = line_s
+        if current_text:
+            items.append(SeccionItem(area=current_area, texto=current_text))
+        return items
+
+    def _parse_recomendaciones(self, text: str) -> List[RecomendacionItem]:
+        """Extrae las recomendaciones estructuradas (Título, Objetivo, Acciones, Impacto)."""
+        items = []
+        if not text:
+            return items
+        blocks = re.split(r'(?:\n---+\n|\n(?=#{2,3}\s+))', text)
+        for block in blocks:
+            block = block.strip()
+            if not block:
+                continue
+            lines = block.split('\n')
+            titulo = ''
+            objetivo = ''
+            acciones = []
+            impacto = ''
+            mode = 'header'
+
+            for line in lines:
+                line_s = line.strip()
+                if not line_s:
+                    continue
+                if line_s.startswith('###') or line_s.startswith('##'):
+                    t = re.sub(r'^#{2,3}\s*(?:Recomendaci[oó]n\s*\d+\s*:\s*)?', '', line_s)
+                    titulo = t.strip()
+                    continue
+                if '**Objetivo:**' in line_s or '**Objetivo**:' in line_s:
+                    mode = 'objetivo'
+                    objetivo = re.sub(r'^\*?\s*\*\*Objetivo:?\*\*:?\s*', '', line_s).strip()
+                    continue
+                if '**Acciones sugeridas:**' in line_s or '**Acciones:**' in line_s:
+                    mode = 'acciones'
+                    continue
+                if '**Impacto esperado:**' in line_s or '**Impacto:**' in line_s:
+                    mode = 'impacto'
+                    impacto = re.sub(r'^\*?\s*\*\*Impacto(?: esperado)?:?\*\*:?\s*', '', line_s).strip()
+                    continue
+
+                if mode == 'acciones':
+                    m_acc = re.match(r'^(?:[\*\-]|(?:\d+\.))\s*(.*)$', line_s)
+                    if m_acc:
+                        acciones.append(m_acc.group(1).strip())
+                    elif acciones:
+                        acciones[-1] += ' ' + line_s
+                elif mode == 'objetivo':
+                    objetivo += ' ' + line_s
+                elif mode == 'impacto':
+                    impacto += ' ' + line_s
+
+            if titulo or objetivo or acciones or impacto:
+                items.append(RecomendacionItem(
+                    titulo=titulo or f"Recomendación Prioritaria {len(items) + 1}",
+                    objetivo=objetivo,
+                    acciones=acciones,
+                    impacto=impacto
+                ))
+        return items
+
+    def generate_chart_radar_emprendedor(self, estadisticas: EstadisticasGlobales) -> str:
+        """Genera gráfico radar en fondo 100% blanco puro con la escala IMESUN."""
+        try:
+            categories = [
+                'Costos y Finanzas\n(CF)',
+                'Gestión y Planif.\n(GP)',
+                'Marketing\n(M)',
+                'Ventas\n(V)',
+                'Talento y Pers.\n(TP)',
+                'Recursos Hum.\n(RH)',
+                'Economía Cuidado\n(EC)',
+            ]
+            valores = [
+                estadisticas.promedio_cf,
+                estadisticas.promedio_gp,
+                estadisticas.promedio_m,
+                estadisticas.promedio_v,
+                estadisticas.promedio_tp,
+                estadisticas.promedio_rh,
+                estadisticas.promedio_ec,
+            ]
+            valores_loop = valores + valores[:1]
+            num_vars = len(categories)
+            angles = np.linspace(0, 2 * np.pi, num_vars, endpoint=False).tolist()
+            angles += angles[:1]
+
+            fig, ax = plt.subplots(figsize=(5.6, 5.0), subplot_kw=dict(projection='polar'))
+            fig.patch.set_facecolor('white')
+            ax.set_facecolor('white')
+
+            # Escala concéntrica IMESUN
+            ax.set_ylim(0, 100)
+            ax.set_yticks([20, 40, 60, 80, 100])
+            ax.set_yticklabels(['20', '40', '60', '80', '100'], fontsize=7.5, color='#64748B')
+            ax.set_rlabel_position(22)
+
+            # Rejilla suave sobre blanco
+            ax.grid(True, color='#E2E8F0', linestyle='--', linewidth=0.8)
+            ax.spines['polar'].set_color('#CBD5E1')
+            ax.spines['polar'].set_linewidth(1.0)
+
+            # Ejes
+            ax.set_xticks(angles[:-1])
+            ax.set_xticklabels(categories, fontsize=8.5, fontweight='bold', color='#1E293B')
+
+            # Polígono institucional
+            ax.plot(
+                angles, valores_loop, 'o-', linewidth=2.2, color='#1E766F',
+                markersize=6, markerfacecolor='#3AADA8', markeredgecolor='#1E766F', markeredgewidth=1.2
+            )
+            ax.fill(angles, valores_loop, color='#3AADA8', alpha=0.22)
+
+            fig.tight_layout()
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+            temp_path = temp_file.name
+            temp_file.close()
+            fig.savefig(temp_path, dpi=180, bbox_inches='tight', facecolor='white', edgecolor='none')
+            plt.close(fig)
+            return temp_path
+        except Exception as e:
+            print(f"Error al generar gráfico radar para emprendedor: {e}")
+            return None
+
+    @staticmethod
+    def _header_footer_emprendedor(canvas_obj: canvas.Canvas, doc):
+        """Encabezado y pie de página limpios sobre fondo blanco puro (ahorro de tinta)."""
+        canvas_obj.saveState()
+        page_w, page_h = letter
+
+        # Encabezado (superior)
+        y_line = page_h - 40
+        canvas_obj.setStrokeColor(colors.HexColor('#1E766F'))
+        canvas_obj.setLineWidth(1.2)
+        canvas_obj.line(45, y_line, page_w - 45, y_line)
+
+        canvas_obj.setFont("Helvetica-Bold", 8)
+        canvas_obj.setFillColor(colors.HexColor('#1E766F'))
+        canvas_obj.drawString(45, y_line + 5, "INCUBADORA JCI EMPRESARIOS LA PAZ")
+
+        canvas_obj.setFont("Helvetica", 8)
+        canvas_obj.setFillColor(colors.HexColor('#64748B'))
+        canvas_obj.drawRightString(page_w - 45, y_line + 5, "Informe Ejecutivo de Diagnóstico")
+
+        # Pie de página (inferior)
+        y_foot = 36
+        canvas_obj.setStrokeColor(colors.HexColor('#E2E8F0'))
+        canvas_obj.setLineWidth(0.8)
+        canvas_obj.line(45, y_foot, page_w - 45, y_foot)
+
+        canvas_obj.setFont("Helvetica", 7.5)
+        canvas_obj.setFillColor(colors.HexColor('#64748B'))
+        canvas_obj.drawString(45, y_foot - 12, "Programa Activa Mujer | Metodología IMESUN - OIT")
+        canvas_obj.drawRightString(page_w - 45, y_foot - 12, f"Página {canvas_obj.getPageNumber()}")
+        canvas_obj.restoreState()
+
     async def get_reporte_data_emprendedor(self, request: ReporteEmprendedorRequest) -> ReporteDataEmprendedor:
         try:
             # 1. Obtener usuario
@@ -975,29 +1233,49 @@ class ReporteService:
                 fecha_dt = datetime.fromisoformat(d["fecha_inicio"].replace('Z', '+00:00'))
                 diag_timeline.append(DiagnosticoPorFecha(
                     fecha=fecha_dt,
-                    promedio=d.get("puntaje_total", 0) or 0
+                    promedio=float(d.get("puntaje_total", 0) or 0)
                 ))
             
-            # 5. Obtener el último diagnóstico para las estadísticas actuales
+            # 5. Obtener el último diagnóstico para las notas y textos
             ultimo = diagnosticos[-1]
             estadisticas = EstadisticasGlobales(
                 total_emprendedores=1,
-                tasa_aprobado=100 if ultimo.get("resultado") == "ACEPTADO" else 0,
-                promedio_cf=ultimo.get("puntaje_cf", 0) or 0,
-                promedio_gp=ultimo.get("puntaje_gp", 0) or 0,
-                promedio_m=ultimo.get("puntaje_m", 0) or 0,
-                promedio_v=ultimo.get("puntaje_v", 0) or 0,
-                promedio_tp=ultimo.get("puntaje_tp", 0) or 0,
-                promedio_rh=ultimo.get("puntaje_rh", 0) or 0,
-                promedio_ec=ultimo.get("puntaje_ec", 0) or 0,
-                promedio_general=ultimo.get("puntaje_total", 0) or 0
+                tasa_aprobado=100 if ultimo.get("resultado") in ["APROBADO", "EXIMIDO", "ACEPTADO"] else 0,
+                promedio_cf=float(ultimo.get("puntaje_cf", 0) or 0),
+                promedio_gp=float(ultimo.get("puntaje_gp", 0) or 0),
+                promedio_m=float(ultimo.get("puntaje_m", 0) or 0),
+                promedio_v=float(ultimo.get("puntaje_v", 0) or 0),
+                promedio_tp=float(ultimo.get("puntaje_tp", 0) or 0),
+                promedio_rh=float(ultimo.get("puntaje_rh", 0) or 0),
+                promedio_ec=float(ultimo.get("puntaje_ec", 0) or 0),
+                promedio_general=float(ultimo.get("puntaje_total", 0) or 0)
             )
+
+            # 6. Parsear conclusión y recomendaciones del último diagnóstico
+            raw_conclusion = ultimo.get("conclusion") or ""
+            raw_recom = ultimo.get("recomendaciones") or ""
+
+            diag_gen, fortalezas, debilidades = self._parse_conclusion(raw_conclusion)
+            recs = self._parse_recomendaciones(raw_recom)
+
+            fecha_diag = None
+            if ultimo.get("fecha_inicio"):
+                try:
+                    fecha_diag = datetime.fromisoformat(ultimo["fecha_inicio"].replace('Z', '+00:00'))
+                except:
+                    fecha_diag = datetime.now()
             
             return ReporteDataEmprendedor(
                 nombre_emprendedor=usuario["nombre"],
                 apellido_emprendedor=usuario["apellido"],
-                nombre_emprendimiento=emprendimiento["nombre"],
-                rubro=emprendimiento["rubro"],
+                nombre_emprendimiento=emprendimiento.get("nombre") or "Emprendimiento",
+                rubro=emprendimiento.get("rubro") or "General",
+                resultado=ultimo.get("resultado") or "APROBADO",
+                fecha_diagnostico=fecha_diag,
+                diagnostico_general=diag_gen,
+                fortalezas=fortalezas,
+                debilidades=debilidades,
+                recomendaciones=recs,
                 estadisticas_actuales=estadisticas,
                 diagnosticos_timeline=diag_timeline
             )
@@ -1009,103 +1287,421 @@ class ReporteService:
             raise HTTPException(status_code=500, detail=f"Error validando reporte individual: {str(e)}")
 
     async def generate_pdf_emprendedor(self, data: ReporteDataEmprendedor) -> bytes:
+        """
+        Genera el informe ejecutivo de diagnóstico para el emprendedor.
+        Optimizado para impresión en hoja blanca con bajo consumo de tinta y estética formal institucional.
+        """
+        chart_radar = None
         try:
-            # Sin radar — solo gráfico de línea
-            chart_line = self.generate_chart_line(data.diagnosticos_timeline)
+            chart_radar = self.generate_chart_radar_emprendedor(data.estadisticas_actuales)
 
             buffer = io.BytesIO()
             doc = SimpleDocTemplate(
                 buffer,
                 pagesize=letter,
-                topMargin=65, bottomMargin=55, leftMargin=50, rightMargin=50,
+                topMargin=50,
+                bottomMargin=48,
+                leftMargin=45,
+                rightMargin=45,
             )
             story = []
-            s = self._get_styles()
 
-            # Portada
-            story.append(Spacer(1, 1.8 * inch))
-            cover_title = ParagraphStyle(
-                'CoverTitle', parent=s['base']['Heading1'], fontSize=26, textColor=self.NAVY,
-                fontName='Helvetica-Bold', alignment=TA_CENTER, spaceAfter=12
+            # ── Estilos Tipográficos Especiales para Reporte Emprendedor ──
+            styles = getSampleStyleSheet()
+
+            style_doc_title = ParagraphStyle(
+                'DocTitleEmp', parent=styles['Heading1'],
+                fontSize=17, leading=21, textColor=colors.HexColor('#1B2A4A'),
+                fontName='Helvetica-Bold', alignment=TA_LEFT, spaceAfter=2
             )
-            cover_sub = ParagraphStyle(
-                'CoverSub', parent=s['base']['Normal'], fontSize=14, textColor=self.DARK_GRAY,
-                fontName='Helvetica', alignment=TA_CENTER, spaceAfter=6
+            style_doc_sub = ParagraphStyle(
+                'DocSubEmp', parent=styles['Normal'],
+                fontSize=8.5, leading=12, textColor=colors.HexColor('#64748B'),
+                fontName='Helvetica', alignment=TA_LEFT, spaceAfter=12
+            )
+            style_sec_title = ParagraphStyle(
+                'SecTitleEmp', parent=styles['Heading2'],
+                fontSize=12, leading=15, textColor=colors.HexColor('#1E766F'),
+                fontName='Helvetica-Bold', spaceBefore=10, spaceAfter=6, keepWithNext=True
+            )
+            style_sec_desc = ParagraphStyle(
+                'SecDescEmp', parent=styles['Normal'],
+                fontSize=8.5, leading=12, textColor=colors.HexColor('#64748B'),
+                fontName='Helvetica', spaceAfter=8, keepWithNext=True
+            )
+            style_card_label = ParagraphStyle(
+                'CardLbl', parent=styles['Normal'],
+                fontSize=7.5, leading=10, textColor=colors.HexColor('#64748B'),
+                fontName='Helvetica-Bold'
+            )
+            style_card_val = ParagraphStyle(
+                'CardVal', parent=styles['Normal'],
+                fontSize=9.5, leading=12, textColor=colors.HexColor('#1E293B'),
+                fontName='Helvetica-Bold'
+            )
+            style_body = ParagraphStyle(
+                'BodyEmp', parent=styles['Normal'],
+                fontSize=8.5, leading=12.5, textColor=colors.HexColor('#334155'),
+                fontName='Helvetica'
+            )
+            style_body_bold = ParagraphStyle(
+                'BodyBoldEmp', parent=styles['Normal'],
+                fontSize=8.5, leading=12.5, textColor=colors.HexColor('#1E293B'),
+                fontName='Helvetica-Bold'
             )
 
-            story.append(Paragraph("REPORTE INDIVIDUAL", cover_title))
-            story.append(Paragraph("Incubadora JCI Empresarios La Paz", cover_sub))
-            story.append(Spacer(1, 0.6 * inch))
+            # ══════════════════════════════════════════════════════════
+            # PÁGINA 1: FICHA DEL EMPRENDIMIENTO & DIAGNÓSTICO GENERAL
+            # ══════════════════════════════════════════════════════════
+            story.append(Paragraph("INFORME DE DIAGNÓSTICO DE LUCI IA", style_doc_title))
+            story.append(Paragraph("Evaluación Integral de Madurez y Capacidades del Emprendimiento — Metodología IMESUN (OIT)", style_doc_sub))
 
-            line_table = Table([['']], colWidths=[4 * inch], rowHeights=[2])
-            line_table.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), self.NAVY)]))
-            line_wrapper = Table([[line_table]], colWidths=[doc.width])
-            line_wrapper.setStyle(TableStyle([('ALIGN', (0, 0), (-1, -1), 'CENTER')]))
-            story.append(line_wrapper)
-            story.append(Spacer(1, 0.6 * inch))
+            # Ficha de Emprendimiento & Dictamen Card (Fondo blanco, borde sutil)
+            fecha_str = data.fecha_diagnostico.strftime('%d/%m/%Y') if data.fecha_diagnostico else datetime.now().strftime('%d/%m/%Y')
+            score_general = round(data.estadisticas_actuales.promedio_general, 1)
+            nivel_gral, nivel_gral_desc = self._get_imesun_nivel(score_general)
 
-            cover_data = [
-                ['Emprendedor', f"{data.nombre_emprendedor} {data.apellido_emprendedor}"],
-                ['Negocio', data.nombre_emprendimiento],
-                ['Rubro', data.rubro],
-                ['Fecha de generación', datetime.now().strftime('%d/%m/%Y %H:%M')],
+            color_resultado = colors.HexColor('#1E766F')  # APROBADO
+            if data.resultado == "EXIMIDO":
+                color_resultado = colors.HexColor('#00AEEF')
+            elif data.resultado == "OBSERVADO":
+                color_resultado = colors.HexColor('#C0392B')
+
+            ficha_left = [
+                [Paragraph("EMPRENDEDOR/A", style_card_label), Paragraph(f"{data.nombre_emprendedor} {data.apellido_emprendedor}", style_card_val)],
+                [Paragraph("EMPRENDIMIENTO", style_card_label), Paragraph(data.nombre_emprendimiento, style_card_val)],
+                [Paragraph("RUBRO", style_card_label), Paragraph(data.rubro, style_card_val)],
+                [Paragraph("FECHA EVALUACIÓN", style_card_label), Paragraph(fecha_str, style_card_val)],
             ]
-            story.append(self._build_label_value_table(cover_data, col_widths=[2.5 * inch, 3.5 * inch]))
+            tbl_left = Table(ficha_left, colWidths=[1.3 * inch, 2.3 * inch])
+            tbl_left.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+            ]))
 
-            story.append(PageBreak())
-            story.append(Paragraph("1. INFORMACIÓN DEL ÚLTIMO DIAGNÓSTICO", s['section']))
-            story.append(Paragraph("A continuación se detallan los puntajes en el diagnóstico más reciente.", s['body']))
+            badge_style = ParagraphStyle(
+                'BadgeText', parent=styles['Normal'],
+                fontSize=12, leading=14, textColor=color_resultado,
+                fontName='Helvetica-Bold', alignment=TA_CENTER
+            )
+            score_style = ParagraphStyle(
+                'ScoreText', parent=styles['Normal'],
+                fontSize=20, leading=22, textColor=colors.HexColor('#1E293B'),
+                fontName='Helvetica-Bold', alignment=TA_CENTER
+            )
+            score_lbl_style = ParagraphStyle(
+                'ScoreLbl', parent=styles['Normal'],
+                fontSize=7.5, leading=9, textColor=colors.HexColor('#64748B'),
+                fontName='Helvetica-Bold', alignment=TA_CENTER
+            )
+
+            ficha_right = [
+                [Paragraph("PUNTAJE GLOBAL", score_lbl_style)],
+                [Paragraph(f"{score_general} <font size=10 color='#64748B'>/ 100</font>", score_style)],
+                [Paragraph(data.resultado, badge_style)],
+                [Paragraph(f"{nivel_gral}: {nivel_gral_desc}", score_lbl_style)],
+            ]
+            tbl_right = Table(ficha_right, colWidths=[2.2 * inch])
+            tbl_right.setStyle(TableStyle([
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('TOPPADDING', (0, 0), (-1, -1), 2),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+            ]))
+
+            ficha_main = Table([[tbl_left, tbl_right]], colWidths=[3.7 * inch, 2.3 * inch])
+            ficha_main.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#CBD5E1')),
+                ('LINEBEFORE', (1, 0), (1, 0), 1, colors.HexColor('#E2E8F0')),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ]))
+            story.append(ficha_main)
+            story.append(Spacer(1, 12))
+
+            # Diagnóstico General de Madurez
+            story.append(Paragraph("1. Diagnóstico General de Madurez", style_sec_title))
+            clean_diag_gen = self._markdown_to_reportlab(data.diagnostico_general) or "Diagnóstico no disponible."
             
-            stats_rows = [
-                ['Costos y Finanzas (CF)', str(data.estadisticas_actuales.promedio_cf)],
-                ['Gestión y Producción (GP)', str(data.estadisticas_actuales.promedio_gp)],
-                ['Marketing (M)', str(data.estadisticas_actuales.promedio_m)],
-                ['Ventas (V)', str(data.estadisticas_actuales.promedio_v)],
-                ['Talento y Personas (TP)', str(data.estadisticas_actuales.promedio_tp)],
-                ['Recursos Humanos (RH)', str(data.estadisticas_actuales.promedio_rh)],
-                ['Economía del Cuidado (EC)', str(data.estadisticas_actuales.promedio_ec)],
-            ]
-            story.append(self._build_label_value_table(stats_rows))
-            story.append(Spacer(1, 0.15 * inch))
-
-            summary_data = [['PUNTAJE GENERAL', str(data.estadisticas_actuales.promedio_general)]]
-            summary_tbl = Table(summary_data, colWidths=[2.8 * inch, 3.5 * inch])
-            summary_tbl.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, -1), self.NAVY),
-                ('TEXTCOLOR', (0, 0), (-1, -1), self.WHITE),
-                ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 11),
-                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('LEFTPADDING', (0, 0), (-1, -1), 12),
+            box_diag = Table([[Paragraph(clean_diag_gen, style_body)]], colWidths=[6.0 * inch])
+            box_diag.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                ('LINELEFT', (0, 0), (-1, -1), 3.5, colors.HexColor('#1E766F')),
+                ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
                 ('TOPPADDING', (0, 0), (-1, -1), 8),
                 ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
             ]))
-            story.append(summary_tbl)
+            story.append(box_diag)
+            story.append(Spacer(1, 12))
 
-            story.append(Spacer(1, 0.3 * inch))
+            # Rúbrica IMESUN Informativa (Fondo blanco, líneas sutiles)
+            rubrica_title = ParagraphStyle(
+                'RubTitle', parent=styles['Normal'],
+                fontSize=8.5, leading=11, textColor=colors.HexColor('#1E766F'),
+                fontName='Helvetica-Bold', spaceAfter=4
+            )
+            story.append(Paragraph("Marco de Referencia: Escala de Madurez Empresarial IMESUN (OIT)", rubrica_title))
+            rubrica_rows = [
+                [
+                    Paragraph("<b>Nivel 1 (0 - 20 pts)</b><br/>Inicial / Crítico<br/><i>Dictamen: OBSERVADO</i>", style_body),
+                    Paragraph("<b>Nivel 2 (21 - 40 pts)</b><br/>Básico / Vulnerable<br/><i>Dictamen: APROBADO</i>", style_body),
+                    Paragraph("<b>Nivel 3 (41 - 60 pts)</b><br/>En Desarrollo<br/><i>Dictamen: APROBADO</i>", style_body),
+                    Paragraph("<b>Nivel 4 (61 - 80 pts)</b><br/>Establecido / Avanzado<br/><i>Dictamen: APROBADO</i>", style_body),
+                    Paragraph("<b>Nivel 5 (81 - 100 pts)</b><br/>Consolidado<br/><i>Dictamen: EXIMIDO</i>", style_body),
+                ]
+            ]
+            tbl_rubrica = Table(rubrica_rows, colWidths=[1.2 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch, 1.2 * inch])
+            tbl_rubrica.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+                ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+            ]))
+            story.append(tbl_rubrica)
 
+            # ══════════════════════════════════════════════════════════
+            # PÁGINA 2: ANÁLISIS POR ÁREAS & GRÁFICO RADAR
+            # ══════════════════════════════════════════════════════════
             story.append(PageBreak())
-            story.append(Paragraph("2. EVOLUCIÓN HISTÓRICA", s['section']))
-            story.append(Paragraph("Gráfico de evolución de puntajes a través del tiempo.", s['body']))
-            story.append(Spacer(1, 0.2 * inch))
-            if chart_line:
-                story.append(Image(chart_line, width=5.5*inch, height=2.75*inch))
+            story.append(Paragraph("2. Evaluación por Áreas de Gestión (Metodología IMESUN - OIT)", style_sec_title))
+            story.append(Paragraph("Mapa integral de capacidades y desglose del rendimiento cuantitativo por dimensión estratégica.", style_sec_desc))
 
-            # Build document
-            doc.build(story, onFirstPage=self._header_footer, onLaterPages=self._header_footer)
+            # Gráfico de Telaraña (Radar)
+            if chart_radar and os.path.exists(chart_radar):
+                img_radar = Image(chart_radar, width=4.8 * inch, height=4.2 * inch)
+                img_radar.hAlign = 'CENTER'
+                story.append(img_radar)
+                story.append(Spacer(1, 6))
 
-            for chart_file in [chart_line]:
-                if chart_file and os.path.exists(chart_file):
-                    try:
-                        os.remove(chart_file)
-                    except:
-                        pass
+            # Tabla de notas por área
+            areas_data = [
+                ('Costos y Finanzas', 'CF', data.estadisticas_actuales.promedio_cf),
+                ('Gestión y Planificación', 'GP', data.estadisticas_actuales.promedio_gp),
+                ('Marketing', 'M', data.estadisticas_actuales.promedio_m),
+                ('Ventas', 'V', data.estadisticas_actuales.promedio_v),
+                ('Talento y Personas', 'TP', data.estadisticas_actuales.promedio_tp),
+                ('Recursos Humanos', 'RH', data.estadisticas_actuales.promedio_rh),
+                ('Economía del Cuidado', 'EC', data.estadisticas_actuales.promedio_ec),
+            ]
+
+            table_rows = [
+                [
+                    Paragraph("<b>Área de Gestión</b>", style_body_bold),
+                    Paragraph("<b>Cód.</b>", style_body_bold),
+                    Paragraph("<b>Puntaje</b>", style_body_bold),
+                    Paragraph("<b>Nivel IMESUN</b>", style_body_bold),
+                    Paragraph("<b>Diagnóstico de Madurez</b>", style_body_bold),
+                ]
+            ]
+
+            for nom, cod, pt in areas_data:
+                niv, desc = self._get_imesun_nivel(pt)
+                table_rows.append([
+                    Paragraph(nom, style_body),
+                    Paragraph(f"<b>{cod}</b>", style_body),
+                    Paragraph(f"<b>{round(pt, 1)}</b> / 100", style_body),
+                    Paragraph(niv, style_body),
+                    Paragraph(desc, style_body),
+                ])
+
+            # Fila Total Promedio
+            table_rows.append([
+                Paragraph("<b>PUNTAJE GLOBAL PROMEDIO</b>", style_body_bold),
+                Paragraph("-", style_body_bold),
+                Paragraph(f"<b>{score_general}</b> / 100", style_body_bold),
+                Paragraph(f"<b>{nivel_gral}</b>", style_body_bold),
+                Paragraph(f"<b>Dictamen: {data.resultado}</b>", style_body_bold),
+            ])
+
+            tbl_scores = Table(table_rows, colWidths=[2.0 * inch, 0.5 * inch, 1.0 * inch, 1.0 * inch, 1.7 * inch])
+            tbl_scores_style = [
+                ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                ('LINEBELOW', (0, 0), (-1, 0), 1.2, colors.HexColor('#1E766F')),
+                ('LINEBELOW', (0, 1), (-1, -2), 0.5, colors.HexColor('#E2E8F0')),
+                ('LINEABOVE', (0, -1), (-1, -1), 1.0, colors.HexColor('#1E766F')),
+                ('LINEBELOW', (0, -1), (-1, -1), 1.0, colors.HexColor('#1E766F')),
+                ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#F8FAFC')),
+                ('TOPPADDING', (0, 0), (-1, -1), 3.5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
+                ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]
+            tbl_scores.setStyle(TableStyle(tbl_scores_style))
+            story.append(tbl_scores)
+
+            # ══════════════════════════════════════════════════════════
+            # PÁGINA 3: PERFIL COMPETITIVO (FORTALEZAS & OPORTUNIDADES)
+            # ══════════════════════════════════════════════════════════
+            story.append(PageBreak())
+            story.append(Paragraph("3. Perfil Competitivo del Emprendimiento", style_sec_title))
+            story.append(Paragraph("Identificación de ventajas competitivas consolidadas y factores críticos de mejora.", style_sec_desc))
+
+            # Fortalezas Principales
+            lbl_fort = ParagraphStyle(
+                'LblFort', parent=styles['Heading3'],
+                fontSize=10.5, leading=13, textColor=colors.HexColor('#1E766F'),
+                fontName='Helvetica-Bold', spaceBefore=4, spaceAfter=5, keepWithNext=True
+            )
+            story.append(Paragraph("Fortalezas Clave Identificadas", lbl_fort))
+
+            if data.fortalezas:
+                fort_cells = []
+                for item in data.fortalezas:
+                    area_part = f"<b>{self._clean_text_for_reportlab(item.area)}:</b> " if item.area else ""
+                    txt_part = self._markdown_to_reportlab(item.texto)
+                    fort_cells.append([
+                        Paragraph("<font color='#1E766F'>•</font>", style_body_bold),
+                        Paragraph(f"{area_part}{txt_part}", style_body)
+                    ])
+                tbl_fort = Table(fort_cells, colWidths=[0.25 * inch, 5.75 * inch])
+                tbl_fort.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                    ('LINELEFT', (0, 0), (-1, -1), 3.0, colors.HexColor('#1E766F')),
+                    ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                story.append(tbl_fort)
+            else:
+                story.append(Paragraph("No se registraron fortalezas específicas.", style_body))
+
+            story.append(Spacer(1, 14))
+
+            # Áreas Críticas de Oportunidad (Debilidades)
+            lbl_deb = ParagraphStyle(
+                'LblDeb', parent=styles['Heading3'],
+                fontSize=10.5, leading=13, textColor=colors.HexColor('#D97706'),
+                fontName='Helvetica-Bold', spaceBefore=4, spaceAfter=5, keepWithNext=True
+            )
+            story.append(Paragraph("Áreas Críticas de Oportunidad y Mejora", lbl_deb))
+
+            if data.debilidades:
+                deb_cells = []
+                for item in data.debilidades:
+                    area_part = f"<b>{self._clean_text_for_reportlab(item.area)}:</b> " if item.area else ""
+                    txt_part = self._markdown_to_reportlab(item.texto)
+                    deb_cells.append([
+                        Paragraph("<font color='#D97706'>•</font>", style_body_bold),
+                        Paragraph(f"{area_part}{txt_part}", style_body)
+                    ])
+                tbl_deb = Table(deb_cells, colWidths=[0.25 * inch, 5.75 * inch])
+                tbl_deb.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                    ('LINELEFT', (0, 0), (-1, -1), 3.0, colors.HexColor('#D97706')),
+                    ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 5),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                story.append(tbl_deb)
+            else:
+                story.append(Paragraph("No se registraron áreas críticas de oportunidad.", style_body))
+
+            # ══════════════════════════════════════════════════════════
+            # PÁGINA 4: PLAN DE ACCIÓN Y RECOMENDACIONES PRIORITARIAS
+            # ══════════════════════════════════════════════════════════
+            story.append(PageBreak())
+            story.append(Paragraph("4. Plan de Acción y Recomendaciones Prioritarias", style_sec_title))
+            story.append(Paragraph("Hoja de ruta sugerida con acciones concretas para acelerar la madurez del negocio.", style_sec_desc))
+
+            style_rec_title = ParagraphStyle(
+                'RecTitle', parent=styles['Normal'],
+                fontSize=9.5, leading=12, textColor=colors.HexColor('#1E766F'),
+                fontName='Helvetica-Bold'
+            )
+
+            if data.recomendaciones:
+                for idx, rec in enumerate(data.recomendaciones, 1):
+                    rec_content = []
+                    titulo_clean = self._clean_text_for_reportlab(rec.titulo)
+                    rec_content.append(Paragraph(f"<b>Recomendación {idx}: {titulo_clean}</b>", style_rec_title))
+
+                    if rec.objetivo:
+                        obj_clean = self._markdown_to_reportlab(rec.objetivo)
+                        rec_content.append(Paragraph(f"<b>Objetivo:</b> {obj_clean}", style_body))
+
+                    if rec.acciones:
+                        acciones_p = []
+                        for a in rec.acciones:
+                            a_clean = self._markdown_to_reportlab(a)
+                            acciones_p.append(f"• {a_clean}")
+                        acciones_str = "<br/>".join(acciones_p)
+                        rec_content.append(Paragraph(f"<b>Acciones sugeridas:</b><br/>{acciones_str}", style_body))
+
+                    if rec.impacto:
+                        imp_clean = self._markdown_to_reportlab(rec.impacto)
+                        rec_content.append(Paragraph(f"<b>Impacto esperado:</b> {imp_clean}", style_body))
+
+                    rec_box = Table([[c] for c in rec_content], colWidths=[6.0 * inch])
+                    rec_box.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+                        ('LINEABOVE', (0, 0), (-1, 0), 1.8, colors.HexColor('#1E766F')),
+                        ('TOPPADDING', (0, 0), (-1, -1), 3),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                    ]))
+                    story.append(rec_box)
+                    story.append(Spacer(1, 8))
+            else:
+                story.append(Paragraph("No se encontraron recomendaciones estructuradas en el diagnóstico.", style_body))
+
+            story.append(Spacer(1, 10))
+
+            # Cuadro Institucional de Cierre
+            cierre_p = Paragraph(
+                "<i>Este informe de diagnóstico ha sido generado por la Incubadora de Emprendimientos de JCI Empresarios La Paz en el marco del Programa Activa Mujer. Para profundizar en la ejecución de este plan de acción y acceder a acompañamiento técnico individualizado, coordina tus sesiones de seguimiento con la coordinación del programa.</i>",
+                ParagraphStyle('CierreP', parent=styles['Normal'], fontSize=7.5, leading=10.5, textColor=colors.HexColor('#64748B'), alignment=TA_CENTER)
+            )
+            tbl_cierre = Table([[cierre_p]], colWidths=[6.0 * inch])
+            tbl_cierre.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+                ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#E2E8F0')),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('LEFTPADDING', (0, 0), (-1, -1), 10),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+            ]))
+            story.append(tbl_cierre)
+
+            # Compilar PDF
+            doc.build(story, onFirstPage=self._header_footer_emprendedor, onLaterPages=self._header_footer_emprendedor)
+
+            # Limpiar archivo temporal de radar
+            if chart_radar and os.path.exists(chart_radar):
+                try:
+                    os.remove(chart_radar)
+                except:
+                    pass
 
             pdf_bytes = buffer.getvalue()
             buffer.close()
             return pdf_bytes
 
         except Exception as e:
+            if chart_radar and os.path.exists(chart_radar):
+                try:
+                    os.remove(chart_radar)
+                except:
+                    pass
             print(f"Error al generar PDF individual: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error al generar PDF individual: {str(e)}")
 
