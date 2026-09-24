@@ -41,7 +41,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({
                     <div className="absolute -inset-2.5 rounded-2xl bg-gradient-to-tr from-activa-teal/30 via-primary-400/25 to-activa-coral/30 blur-md animate-pulse" />
                     <div className="relative flex items-center justify-center w-20 h-20 rounded-2xl bg-white shadow-sm border border-slate-100 p-2.5">
                         <img
-                            src="/logo-activa-mujer-dibujo.webp"
+                            src="/favicon.webp"
                             alt="Emblema Activa Mujer"
                             className="w-full h-full object-contain filter drop-shadow-sm select-none"
                         />

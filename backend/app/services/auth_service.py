@@ -7,6 +7,12 @@ from fastapi import HTTPException, status
 from app.services.supabase_client import get_supabase_client
 from app.models.user import UserCreate, UserResponse
 
+ROLES_MAP = {
+    1: "Administrador",
+    2: "Emprendedor",
+    3: "Mentor",
+}
+
 
 class AuthService:
     """Servicio para manejar autenticación y usuarios"""
@@ -116,11 +122,7 @@ class AuthService:
             if response.data and len(response.data) > 0:
                 user_data = response.data[0]
                 
-                # Obtener el nombre del rol por separado
-                rol_response = self.supabase.table("rol").select("rol").eq("id_rol", user_data["id_rol"]).execute()
-                rol_nombre = "Emprendedor"  # Default
-                if rol_response.data and len(rol_response.data) > 0:
-                    rol_nombre = rol_response.data[0]["rol"]
+                rol_nombre = ROLES_MAP.get(user_data.get("id_rol"), "Emprendedor")
                 
                 return UserResponse(
                     id_usuario=user_data["id_usuario"],
@@ -159,11 +161,7 @@ class AuthService:
             if response.data and len(response.data) > 0:
                 user_data = response.data[0]
                 
-                # Obtener el nombre del rol por separado
-                rol_response = self.supabase.table("rol").select("rol").eq("id_rol", user_data["id_rol"]).execute()
-                rol_nombre = "Emprendedor"  # Default
-                if rol_response.data and len(rol_response.data) > 0:
-                    rol_nombre = rol_response.data[0]["rol"]
+                rol_nombre = ROLES_MAP.get(user_data.get("id_rol"), "Emprendedor")
                 
                 return UserResponse(
                     id_usuario=user_data["id_usuario"],
@@ -230,18 +228,15 @@ class AuthService:
             
             if response.data:
                 for user_data in response.data:
-                    # Obtener el nombre del rol
-                    rol_response = self.supabase.table("rol").select("rol").eq("id_rol", user_data["id_rol"]).execute()
-                    rol_nombre = "Emprendedor"  # Default
-                    if rol_response.data and len(rol_response.data) > 0:
-                        rol_nombre = rol_response.data[0]["rol"]
+                    id_rol = user_data.get("id_rol")
+                    rol_nombre = ROLES_MAP.get(id_rol, "Emprendedor")
                     
                     users.append(UserResponse(
                         id_usuario=user_data["id_usuario"],
                         email=user_data["email"],
                         nombre=user_data.get("nombre"),
                         apellido=user_data.get("apellido"),
-                        id_rol=user_data["id_rol"],
+                        id_rol=id_rol,
                         rol=rol_nombre,
                         estado=user_data.get("estado", True),
                         habilitado_diag=user_data.get("habilitado_diag", False),

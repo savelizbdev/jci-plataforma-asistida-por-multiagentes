@@ -139,6 +139,22 @@ class DiagnosticoService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al crear detalle de diagnóstico: {str(e)}"
             )
+
+    async def create_detalles_batch(
+        self,
+        detalles_list: list[dict]
+    ) -> list[dict]:
+        """
+        Inserta múltiples detalles de diagnóstico en una sola petición HTTP (Bulk Insert).
+        """
+        if not detalles_list:
+            return []
+        try:
+            response = self.supabase.table("detalle_diagnostico").insert(detalles_list).execute()
+            return response.data or []
+        except Exception as e:
+            print(f"[ERROR] Error al insertar detalles en lote: {e}")
+            raise
     
     async def update_diagnostico(
         self,

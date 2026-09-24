@@ -527,23 +527,34 @@ async def evaluar_area_ia(request: EvaluarAreaRequest):
         except Exception as e_patch:
             print(f"[WARN] Error al actualizar estado de sesión en ADK: {e_patch}")
         
-        # Guardar detalles en la DB
-        if id_diagnostico:
+        # Guardar detalles en la DB (Bulk Insert en un solo request HTTP)
+        if id_diagnostico and request.respuestas:
             diagnostico_service = DiagnosticoService()
             scores_map = {s.get("id_pregunta"): s for s in scores_list}
+            detalles_batch = [
+                {
+                    "id_diagnostico": id_diagnostico,
+                    "id_pregunta": r.id_pregunta,
+                    "respuesta_usuario": r.respuesta,
+                    "puntaje": float(scores_map.get(r.id_pregunta, {}).get("score", 50)),
+                }
+                for r in request.respuestas
+            ]
             
-            for r in request.respuestas:
-                score_info = scores_map.get(r.id_pregunta, {"score": 50})
-                puntaje = score_info.get("score", 50)
-                try:
-                    await diagnostico_service.create_detalle_diagnostico(
-                        id_diagnostico=id_diagnostico,
-                        id_pregunta=r.id_pregunta,
-                        respuesta_usuario=r.respuesta,
-                        puntaje=float(puntaje),
-                    )
-                except Exception as db_err:
-                    print(f"[DB ERROR] Error al guardar detalle: id_diagnostico={id_diagnostico}, id_pregunta={r.id_pregunta}, err: {db_err}")
+            try:
+                await diagnostico_service.create_detalles_batch(detalles_batch)
+            except Exception as batch_err:
+                print(f"[WARN] Error en bulk insert ({batch_err}), reintentando individualmente...")
+                for d in detalles_batch:
+                    try:
+                        await diagnostico_service.create_detalle_diagnostico(
+                            id_diagnostico=d["id_diagnostico"],
+                            id_pregunta=d["id_pregunta"],
+                            respuesta_usuario=d["respuesta_usuario"],
+                            puntaje=d["puntaje"],
+                        )
+                    except Exception as db_err:
+                        print(f"[DB ERROR] Error al guardar detalle individual: {db_err}")
         
         return EvaluarAreaResponse(
             scores=[

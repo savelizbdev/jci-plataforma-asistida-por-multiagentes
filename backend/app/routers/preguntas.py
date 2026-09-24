@@ -69,3 +69,15 @@ async def obtener_areas():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener áreas: {str(e)}"
         )
+
+
+@router.post("/cache/clear")
+async def limpiar_cache_preguntas():
+    """
+    Invalida el caché en memoria de preguntas y áreas para forzar
+    que la siguiente petición recargue todo fresco desde Supabase.
+    """
+    from app.services.pregunta_service import clear_preguntas_cache
+    clear_preguntas_cache()
+    return {"message": "Caché de preguntas y áreas limpiado correctamente"}
+
