@@ -108,7 +108,7 @@ export const Sidebar = memo(({ menuItems, onLogout, isOpen, onClose }: SidebarPr
                 {/* Header */}
                 <div className="p-6 border-b border-white/10 flex items-center justify-between">
                     <div className="flex flex-col justify-center items-center w-full h-12">
-                        <img src="/logo-jci-light.png" alt="JCI Empresarios La Paz" className="h-32 sm:h-28 lg:h-32 w-auto object-contain drop-shadow-lg" />
+                        <img src="/logo-jci-light.webp" alt="JCI Empresarios La Paz" className="h-32 sm:h-28 lg:h-32 w-auto object-contain drop-shadow-lg" />
                     </div>
                     {/* Close button (mobile only) */}
                     <button

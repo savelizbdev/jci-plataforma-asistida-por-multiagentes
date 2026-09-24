@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Layout } from '../components/common/Layout';
+import { LoadingScreen } from '../components/common/LoadingScreen';
 import { adminService } from '../services/adminService';
 import type { AdminDashboardData } from '../types/admin';
 import { ADMIN_MENU_ITEMS } from '../constants/adminMenu';
@@ -128,9 +129,7 @@ export const HomeAdministrador = () => {
     if (loading) {
         return (
             <Layout menuItems={ADMIN_MENU_ITEMS} onLogout={logout}>
-                <div className="flex items-center justify-center min-h-screen">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-                </div>
+                <LoadingScreen fullScreen={false} message="Cargando panel de administración..." />
             </Layout>
         );
     }

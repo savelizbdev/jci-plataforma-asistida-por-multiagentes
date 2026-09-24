@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { useAuth } from './hooks/useAuth';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { LoadingScreen } from './components/common/LoadingScreen';
 import { Login } from './pages/Login';
 import { AccountDisabled } from './pages/AccountDisabled';
 import { HomeEmprendedor } from './pages/HomeEmprendedor';
@@ -24,14 +25,7 @@ function AppRoutes() {
     const { user, loading } = useAuth();
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-light-bg flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-500 mx-auto"></div>
-                    <p className="text-neutral-600 mt-4">Cargando...</p>
-                </div>
-            </div>
-        );
+        return <LoadingScreen message="Cargando plataforma..." />;
     }
 
     // Redirección automática según rol

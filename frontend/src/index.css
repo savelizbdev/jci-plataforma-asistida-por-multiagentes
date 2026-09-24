@@ -47,3 +47,20 @@ body {
     @apply w-full px-4 py-2 bg-white border border-light-border rounded-lg text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow duration-200;
   }
 }
+
+/* Animación fluida de barra de carga */
+@keyframes shimmerLoader {
+  0% {
+    left: -50%;
+  }
+  50% {
+    left: 100%;
+  }
+  100% {
+    left: -50%;
+  }
+}
+
+.animate-shimmer-loader {
+  animation: shimmerLoader 2s ease-in-out infinite;
+}

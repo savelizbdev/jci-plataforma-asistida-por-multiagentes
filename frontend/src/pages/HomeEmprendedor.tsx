@@ -116,7 +116,7 @@ export const HomeEmprendedor = () => {
                 <div className="mb-8 sm:mb-10 flex items-center gap-4 pb-5 border-b border-slate-100">
                     {/* Logo Activa Mujer */}
                     <img
-                        src="/logo-activa-mujer.png"
+                        src="/logo-activa-mujer.webp"
                         alt="Activa Mujer"
                         className="h-14 sm:h-16 w-auto object-contain flex-shrink-0"
                     />
@@ -260,7 +260,7 @@ export const HomeEmprendedor = () => {
                             </div>
                             {/* Logo Activa Mujer en la tarjeta IA */}
                             <img
-                                src="/logo-activa-mujer.png"
+                                src="/logo-activa-mujer.webp"
                                 alt="Activa Mujer"
                                 className={`h-7 w-auto object-contain flex-shrink-0 transition-opacity duration-300 ${habilitado ? 'opacity-80' : 'opacity-25 grayscale'}`}
                             />
@@ -365,8 +365,8 @@ export const HomeEmprendedor = () => {
                         © 2025 JCI Empresarios La Paz – Incubadora. Todos los derechos reservados.
                     </p>
                     <div className="flex items-center gap-4 opacity-60">
-                        <img src="/logo-jci.png" alt="JCI" className="h-6 w-auto object-contain" />
-                        <img src="/logo-activa-mujer.png" alt="Activa Mujer" className="h-6 w-auto object-contain" />
+                        <img src="/logo-jci.webp" alt="JCI" className="h-6 w-auto object-contain" />
+                        <img src="/logo-activa-mujer.webp" alt="Activa Mujer" className="h-6 w-auto object-contain" />
                     </div>
                 </footer>
             </div>

@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Layout } from '../components/common/Layout';
 import { MenuItem } from '../components/common/Sidebar';
+import { LoadingScreen } from '../components/common/LoadingScreen';
 import { mentorService } from '../services/mentorService';
 import type { MentorDashboardStats } from '../types/mentor';
 import {
@@ -157,9 +158,7 @@ export const HomeMentor = () => {
     if (loading) {
         return (
             <Layout menuItems={menuItems} onLogout={logout}>
-                <div className="flex items-center justify-center min-h-screen">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-                </div>
+                <LoadingScreen fullScreen={false} message="Cargando panel de mentoría..." />
             </Layout>
         );
     }
@@ -188,7 +187,7 @@ export const HomeMentor = () => {
                         </p>
                     </div>
                     <div className="mt-2 sm:mt-0">
-                        <img src="/logo-activa-mujer.png" alt="Activa Mujer" className="h-14 sm:h-16 w-auto object-contain" />
+                        <img src="/logo-activa-mujer.webp" alt="Activa Mujer" className="h-14 sm:h-16 w-auto object-contain" />
                     </div>
                 </div>
 

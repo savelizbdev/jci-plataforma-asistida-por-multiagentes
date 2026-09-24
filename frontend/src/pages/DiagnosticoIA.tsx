@@ -17,6 +17,7 @@ import {
 } from '../services/diagnosticoIAService';
 import { Emprendimiento, EstadoEmprendimientoFormData } from '../types/emprendimiento';
 import api from '../services/api';
+import { LoadingScreen } from '../components/common/LoadingScreen';
 
 interface Message {
     id: number;
@@ -477,11 +478,7 @@ export const DiagnosticoIA = () => {
     // ═══════════════════════════════════════
 
     if (isCheckingAccess) {
-        return (
-            <div className="min-h-screen bg-light-bg flex items-center justify-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
-            </div>
-        );
+        return <LoadingScreen message="Verificando acceso al diagnóstico..." />;
     }
 
     if (!hasAccess) {
@@ -594,7 +591,7 @@ export const DiagnosticoIA = () => {
                                 {fase === 'finalizado' ? 'Finalizado' : 'En línea'}
                             </span>
                             <img
-                                src="/logo-activa-mujer.png"
+                                src="/logo-activa-mujer.webp"
                                 alt="Activa Mujer"
                                 className="h-8 sm:h-10 w-auto object-contain opacity-90"
                             />

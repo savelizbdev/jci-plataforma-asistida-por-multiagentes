@@ -3,6 +3,7 @@
  */
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { LoadingScreen } from '../common/LoadingScreen';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -13,14 +14,7 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     const { user, loading } = useAuth();
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-light-bg flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-primary-500 mx-auto"></div>
-                    <p className="text-neutral-600 mt-4">Cargando...</p>
-                </div>
-            </div>
-        );
+        return <LoadingScreen message="Verificando acceso..." />;
     }
 
     if (!user) {

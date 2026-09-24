@@ -51,7 +51,7 @@ export const Login = () => {
                 {/* TOP: JCI Logo */}
                 <div className="relative flex gap-3 items-center lg:px-8 px-4">
                     <img
-                        src="/logo-jci-light.png"
+                        src="/logo-jci-light.webp"
                         alt="JCI Empresarios La Paz"
                         className="h-16 sm:h-24 lg:h-32 w-auto object-contain"
                     />
@@ -64,7 +64,7 @@ export const Login = () => {
                 <div className="relative flex flex-col
                             px-4 sm:px-8 sm:py-4 lg:px-12">
                     <img
-                        src="/logo-activa-mujer.png"
+                        src="/logo-activa-mujer.webp"
                         alt="Activa Mujer"
                         // Aumentamos el tamaño base (móvil) a h-20 o h-24 para mayor presencia
                         className="h-20 sm:h-28 lg:h-40 w-auto object-contain select-none

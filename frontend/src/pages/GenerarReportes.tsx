@@ -91,7 +91,7 @@ export const GenerarReportes = () => {
                         </p>
                     </div>
                     <div className="mt-2 sm:mt-0">
-                        <img src="/logo-activa-mujer.png" alt="Activa Mujer" className="h-14 sm:h-16 w-auto object-contain" />
+                        <img src="/logo-activa-mujer.webp" alt="Activa Mujer" className="h-14 sm:h-16 w-auto object-contain" />
                     </div>
                 </div>
 
