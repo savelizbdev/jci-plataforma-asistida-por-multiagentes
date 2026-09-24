@@ -149,24 +149,15 @@ export const DiagnosticoIA = () => {
         }
     };
 
-    const handleEstadoSubmit = async (formData: EstadoEmprendimientoFormData) => {
+    const handleEstadoSubmit = (formData: EstadoEmprendimientoFormData) => {
         if (!emprendimiento) return;
-        try {
-            await emprendimientoService.createEstadoEmprendimiento({
-                id_emprendimiento: emprendimiento.id_emprendimiento,
-                numero_personal: formData.numero_personal,
-                ventas_men_prom: formData.ventas_men_prom,
-            });
-            setEstadoData({
-                numero_personal: formData.numero_personal,
-                ventas_men_prom: formData.ventas_men_prom
-            });
-            setShowEstadoModal(false);
-        } catch (error) {
-            console.error('Error al guardar estado:', error);
-            throw error;
-        }
+        setEstadoData({
+            numero_personal: formData.numero_personal,
+            ventas_men_prom: formData.ventas_men_prom
+        });
+        setShowEstadoModal(false);
     };
+
 
     // ═══════════════════════════════════════
     // FLUJO PRINCIPAL: Iniciar sesión → cargar primera área

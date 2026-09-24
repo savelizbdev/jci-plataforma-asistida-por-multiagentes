@@ -4,9 +4,7 @@ from .role import Role
 from .emprendimiento import (
     Rubro,
     CreateEmprendimientoRequest,
-    EmprendimientoResponse,
-    CreateEstadoEmprendimientoRequest,
-    EstadoEmprendimientoResponse
+    EmprendimientoResponse
 )
 from .pregunta import PreguntaResponse
 
@@ -18,7 +16,5 @@ __all__ = [
     "Rubro",
     "CreateEmprendimientoRequest",
     "EmprendimientoResponse",
-    "CreateEstadoEmprendimientoRequest",
-    "EstadoEmprendimientoResponse",
     "PreguntaResponse"
 ]

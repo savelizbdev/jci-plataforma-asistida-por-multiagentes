@@ -37,20 +37,10 @@ export interface EmprendimientoFormData {
 }
 
 /**
- * Interface para Estado de Emprendimiento
- */
-export interface EstadoEmprendimiento {
-    id_estado_emp: number;
-    id_emprendimiento: number;
-    numero_personal: number;
-    ventas_men_prom: number;
-    fecha_registro_estado: string;
-}
-
-/**
- * Datos de formulario para crear Estado de Emprendimiento
+ * Datos de formulario de contexto para el diagnóstico (personal y ventas)
  */
 export interface EstadoEmprendimientoFormData {
     numero_personal: number;
     ventas_men_prom: number;
 }
+

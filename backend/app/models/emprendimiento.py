@@ -38,21 +38,3 @@ class EmprendimientoResponse(BaseModel):
     class Config:
         from_attributes = True
 
-
-class CreateEstadoEmprendimientoRequest(BaseModel):
-    """Request para crear estado del emprendimiento"""
-    id_emprendimiento: int
-    numero_personal: int = Field(..., ge=0, description="Número de personas en el emprendimiento")
-    ventas_men_prom: float = Field(..., ge=0, description="Ventas mensuales promedio")
-
-
-class EstadoEmprendimientoResponse(BaseModel):
-    """Response con datos del estado del emprendimiento"""
-    id_estado_emp: int
-    id_emprendimiento: int
-    numero_personal: int
-    ventas_men_prom: float
-    fecha_registro_estado: datetime
-
-    class Config:
-        from_attributes = True

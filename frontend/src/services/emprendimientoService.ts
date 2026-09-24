@@ -1,9 +1,9 @@
 /**
  * Servicio de Emprendimiento
- * Maneja operaciones relacionadas con emprendimientos y sus estados
+ * Maneja operaciones relacionadas con emprendimientos
  */
 import api from './api';
-import { Emprendimiento, EstadoEmprendimiento } from '../types/emprendimiento';
+import { Emprendimiento } from '../types/emprendimiento';
 
 /**
  * Request para crear emprendimiento
@@ -13,15 +13,6 @@ interface CreateEmprendimientoRequest {
     nombre: string;
     rubro: string;
     anio_inicio: number;
-}
-
-/**
- * Request para crear estado de emprendimiento
- */
-interface CreateEstadoEmprendimientoRequest {
-    id_emprendimiento: number;
-    numero_personal: number;
-    ventas_men_prom: number;
 }
 
 export const emprendimientoService = {
@@ -54,39 +45,5 @@ export const emprendimientoService = {
             );
         }
     },
-
-    /**
-     * Crea un nuevo registro de estado del emprendimiento
-     */
-    async createEstadoEmprendimiento(
-        data: CreateEstadoEmprendimientoRequest
-    ): Promise<EstadoEmprendimiento> {
-        try {
-            const response = await api.post<EstadoEmprendimiento>(
-                '/emprendimiento/estado',
-                data
-            );
-            return response.data;
-        } catch (error: any) {
-            throw new Error(
-                error.response?.data?.detail || 'Error al crear estado del emprendimiento'
-            );
-        }
-    },
-
-    /**
-     * Obtiene el historial de estados de un emprendimiento
-     */
-    async getEstadosEmprendimiento(idEmprendimiento: number): Promise<EstadoEmprendimiento[]> {
-        try {
-            const response = await api.get<EstadoEmprendimiento[]>(
-                `/emprendimiento/${idEmprendimiento}/estados`
-            );
-            return response.data;
-        } catch (error: any) {
-            throw new Error(
-                error.response?.data?.detail || 'Error al obtener estados del emprendimiento'
-            );
-        }
-    },
 };
+

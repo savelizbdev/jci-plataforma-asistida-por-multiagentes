@@ -6,9 +6,7 @@ from typing import Optional
 from app.services.supabase_client import get_supabase_client
 from app.models.emprendimiento import (
     CreateEmprendimientoRequest,
-    EmprendimientoResponse,
-    CreateEstadoEmprendimientoRequest,
-    EstadoEmprendimientoResponse
+    EmprendimientoResponse
 )
 
 
@@ -70,49 +68,3 @@ class EmprendimientoService:
 
         return EmprendimientoResponse(**result.data[0])
 
-    async def create_estado_emprendimiento(
-        self, 
-        estado_data: CreateEstadoEmprendimientoRequest
-    ) -> EstadoEmprendimientoResponse:
-        """
-        Crea un nuevo registro de estado del emprendimiento
-
-        Args:
-            estado_data: Datos del estado a registrar
-
-        Returns:
-            EstadoEmprendimientoResponse: Estado del emprendimiento creado
-
-        Raises:
-            Exception: Si hay error en la creación
-        """
-        # Preparar datos para insertar
-        insert_data = {
-            "id_emprendimiento": estado_data.id_emprendimiento,
-            "numero_personal": estado_data.numero_personal,
-            "ventas_men_prom": estado_data.ventas_men_prom
-        }
-
-        # Insertar en Supabase
-        result = self.supabase.table("estado_emprendimiento").insert(insert_data).execute()
-
-        if not result.data:
-            raise Exception("Error al crear estado del emprendimiento en la base de datos")
-
-        return EstadoEmprendimientoResponse(**result.data[0])
-
-    async def get_estado_emprendimiento_by_id(self, id_emprendimiento: int) -> list[EstadoEmprendimientoResponse]:
-        """
-        Obtiene todos los estados de un emprendimiento
-
-        Args:
-            id_emprendimiento: ID del emprendimiento
-
-        Returns:
-            list[EstadoEmprendimientoResponse]: Lista de estados del emprendimiento
-        """
-        result = self.supabase.table("estado_emprendimiento").select("*").eq(
-            "id_emprendimiento", id_emprendimiento
-        ).order("fecha_registro_estado", desc=True).execute()
-
-        return [EstadoEmprendimientoResponse(**item) for item in result.data]
