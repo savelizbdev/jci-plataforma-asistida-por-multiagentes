@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { EstadoEmprendimientoFormData } from '../../types/emprendimiento';
 
 interface EstadoEmprendimientoModalProps {
-    onSubmit: (data: EstadoEmprendimientoFormData) => Promise<void>;
+    onSubmit: (data: EstadoEmprendimientoFormData) => Promise<void> | void;
 }
 
 export const EstadoEmprendimientoModal = ({ onSubmit }: EstadoEmprendimientoModalProps) => {

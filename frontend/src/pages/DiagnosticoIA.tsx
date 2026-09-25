@@ -150,7 +150,7 @@ export const DiagnosticoIA = () => {
         }
     };
 
-    const handleEstadoSubmit = (formData: EstadoEmprendimientoFormData) => {
+    const handleEstadoSubmit = async (formData: EstadoEmprendimientoFormData) => {
         if (!emprendimiento) return;
         setEstadoData({
             numero_personal: formData.numero_personal,
