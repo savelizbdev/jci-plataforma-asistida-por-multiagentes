@@ -14,9 +14,10 @@ export const mentorService = {
     /**
      * Obtiene las estadísticas del dashboard para un mentor
      */
-    async getMentorDashboard(idMentor: string): Promise<MentorDashboardStats> {
+    async getMentorDashboard(idMentor: string, idPrograma?: number): Promise<MentorDashboardStats> {
         const response = await api.get<MentorDashboardStats>(
-            `/mentor/dashboard/${idMentor}`
+            `/mentor/dashboard/${idMentor}`,
+            { params: idPrograma ? { id_programa: idPrograma } : {} }
         );
         return response.data;
     },
@@ -24,9 +25,10 @@ export const mentorService = {
     /**
      * Obtiene los emprendedores asignados a un mentor
      */
-    async getEmprendedoresAsignados(idMentor: string): Promise<EmprendedorAsignado[]> {
+    async getEmprendedoresAsignados(idMentor: string, idPrograma?: number): Promise<EmprendedorAsignado[]> {
         const response = await api.get<EmprendedorAsignado[]>(
-            `/mentor/emprendedores/${idMentor}`
+            `/mentor/emprendedores/${idMentor}`,
+            { params: idPrograma ? { id_programa: idPrograma } : {} }
         );
         return response.data;
     },

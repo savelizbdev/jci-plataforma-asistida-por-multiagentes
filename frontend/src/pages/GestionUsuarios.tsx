@@ -12,7 +12,7 @@ import { ADMIN_MENU_ITEMS } from '../constants/adminMenu';
 
 
 export const GestionUsuarios = () => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
     const [searchTerm, setSearchTerm] = useState('');
     const [users, setUsers] = useState<User[]>([]);
     const [loading, setLoading] = useState(true);
@@ -24,18 +24,17 @@ export const GestionUsuarios = () => {
     const [filterRole, setFilterRole] = useState<string>('Todos');
     const [filterStatus, setFilterStatus] = useState<string>('Todos');
 
-
-
-    // Fetch users on component mount
+    // Fetch users on component mount and when user session is available
     useEffect(() => {
+        if (!user?.id_usuario) return;
         fetchUsers();
-    }, []);
+    }, [user?.id_usuario]);
 
     const fetchUsers = async () => {
         try {
             setLoading(true);
             setError(null);
-            const fetchedUsers = await userService.getAllUsers();
+            const fetchedUsers = await userService.getAllUsers(user?.id_usuario);
             setUsers(fetchedUsers);
         } catch (err: any) {
             setError(err.message || 'Error al cargar usuarios');

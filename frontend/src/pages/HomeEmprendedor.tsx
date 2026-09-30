@@ -11,12 +11,15 @@ import { ProfileFormModal, ProfileFormData } from '../components/auth/ProfileFor
 import { authService } from '../services/authService';
 import { api } from '../services/api';
 import { obtenerMisTareas, marcarTareaCompletada, Tarea } from '../services/tareaService';
+import { programaService } from '../services/programaService';
+import { CodigoProgramaModal } from '../components/programas/CodigoProgramaModal';
 import toast, { Toaster } from 'react-hot-toast';
 
 const menuItems: MenuItem[] = [
     { label: 'Inicio', path: '/emprendedor/home' },
     { label: 'Mis Tareas', path: '/emprendedor/tareas' },
     { label: 'Diagnóstico IA', path: '/emprendedor/diagnostico-ia' },
+    { label: 'Mis Programas', path: '/emprendedor/programas' },
 ];
 
 export const HomeEmprendedor = () => {
@@ -26,10 +29,27 @@ export const HomeEmprendedor = () => {
 
     // ─── Estado ─────────────────────────────────────────────────────────────────
     const [showProfileModal, setShowProfileModal] = useState(!user?.nombre);
+    const [showProgramModal, setShowProgramModal] = useState(false);
     const [mentorInfo, setMentorInfo] = useState<{ nombre: string; apellido: string; email: string } | null>(null);
     const [loadingMentor, setLoadingMentor] = useState(true);
     const [tareas, setTareas] = useState<Tarea[]>([]);
     const [loadingTareas, setLoadingTareas] = useState(true);
+
+    // ─── Verificar si está enrolado en al menos un programa ─────────────────────
+    useEffect(() => {
+        if (!user?.id_usuario || showProfileModal) return;
+        const checkProgramas = async () => {
+            try {
+                const progs = await programaService.obtenerMisProgramas(user.id_usuario);
+                if (progs.length === 0) {
+                    setShowProgramModal(true);
+                }
+            } catch (error) {
+                console.error('Error al verificar programas:', error);
+            }
+        };
+        checkProgramas();
+    }, [user?.id_usuario, showProfileModal]);
 
     // ─── Cargar mentor asignado ──────────────────────────────────────────────────
     useEffect(() => {
@@ -374,6 +394,18 @@ export const HomeEmprendedor = () => {
             {/* ── Modal de perfil (usuario nuevo) ───────────────────────────── */}
             {showProfileModal && (
                 <ProfileFormModal onSubmit={handleProfileSubmit} />
+            )}
+
+            {/* ── Modal de programa (si no tiene programa registrado) ────────── */}
+            {user?.id_usuario && (
+                <CodigoProgramaModal
+                    isOpen={showProgramModal && !showProfileModal}
+                    userId={user.id_usuario}
+                    isDismissable={false}
+                    onSuccess={() => {
+                        setShowProgramModal(false);
+                    }}
+                />
             )}
         </Layout>
     );

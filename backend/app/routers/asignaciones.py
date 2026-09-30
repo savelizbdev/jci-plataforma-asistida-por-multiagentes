@@ -2,12 +2,21 @@
 Router para gestión de asignaciones mentor-emprendedor
 """
 from fastapi import APIRouter, HTTPException
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
+from fastapi import Query
 from supabase import Client
 from app.services.supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/asignaciones", tags=["asignaciones"])
+
+
+from app.services.org_filter import get_admin_org_user_ids
+
+
+def _get_org_user_ids(supabase: Client, admin_id: Optional[str]):
+    return get_admin_org_user_ids(admin_id, supabase)
+
 
 
 # ==================== MODELOS ====================
@@ -20,19 +29,26 @@ class AsignarMentoresRequest(BaseModel):
 # ==================== ENDPOINTS ====================
 
 @router.get("/mentores")
-async def obtener_mentores():
+async def obtener_mentores(admin_id: Optional[str] = Query(None)):
     """
-    Obtiene todos los mentores (id_rol = 3) activos
+    Obtiene todos los mentores (id_rol = 3) activos, filtrados por la organización del admin si se especifica
     """
     try:
         supabase: Client = get_supabase_client()
+        org_users = _get_org_user_ids(supabase, admin_id)
         
-        response = supabase.table("usuario")\
+        query = supabase.table("usuario")\
             .select("id_usuario, nombre, apellido, email")\
             .eq("id_rol", 3)\
-            .eq("estado", True)\
-            .execute()
+            .eq("estado", True)
         
+        if org_users is not None:
+            if len(org_users) == 0:
+                query = query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+            else:
+                query = query.in_("id_usuario", org_users)
+        
+        response = query.execute()
         return response.data
         
     except Exception as e:
@@ -40,31 +56,40 @@ async def obtener_mentores():
 
 
 @router.get("/emprendedores-sin-mentor")
-async def obtener_emprendedores_sin_mentor():
+async def obtener_emprendedores_sin_mentor(admin_id: Optional[str] = Query(None)):
     """
-    Obtiene todos los emprendedores (id_rol = 2) que NO tienen mentor asignado activo
+    Obtiene todos los emprendedores (id_rol = 2) que NO tienen mentor asignado activo,
+    filtrados por la organización del admin si se especifica
     """
     try:
         supabase: Client = get_supabase_client()
+        org_users = _get_org_user_ids(supabase, admin_id)
         
         # Obtener todos los emprendedores
-        response_emprendedores = supabase.table("usuario")\
+        query_emp = supabase.table("usuario")\
             .select("id_usuario, nombre, apellido, email")\
             .eq("id_rol", 2)\
-            .eq("estado", True)\
-            .execute()
+            .eq("estado", True)
         
-        # Obtener emprendedores con asignación (ya no hay estado, toda fila = activa)
+        if org_users is not None:
+            if len(org_users) == 0:
+                query_emp = query_emp.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+            else:
+                query_emp = query_emp.in_("id_usuario", org_users)
+
+        response_emprendedores = query_emp.execute()
+        
+        # Obtener emprendedores con asignación
         response_asignaciones = supabase.table("asignacion_mentor")\
             .select("id_emprendedor")\
             .execute()
         
         # IDs de emprendedores que ya tienen mentor
-        ids_con_mentor = {asig["id_emprendedor"] for asig in response_asignaciones.data}
+        ids_con_mentor = {asig["id_emprendedor"] for asig in (response_asignaciones.data or [])}
         
         # Filtrar emprendedores sin mentor
         emprendedores_sin_mentor = [
-            emp for emp in response_emprendedores.data
+            emp for emp in (response_emprendedores.data or [])
             if emp["id_usuario"] not in ids_con_mentor
         ]
         
@@ -74,22 +99,29 @@ async def obtener_emprendedores_sin_mentor():
         raise HTTPException(status_code=500, detail=f"Error al obtener emprendedores: {str(e)}")
 
 
-
-
 @router.get("/todos-emprendedores")
-async def obtener_todos_emprendedores():
+async def obtener_todos_emprendedores(admin_id: Optional[str] = Query(None)):
     """
-    Obtiene TODOS los emprendedores activos del sistema.
+    Obtiene emprendedores activos del sistema (o de la organización del admin).
     Usado por el administrador para seleccionar en reportes.
     """
     try:
         supabase: Client = get_supabase_client()
-        response = supabase.table("usuario") \
+        org_users = _get_org_user_ids(supabase, admin_id)
+
+        query = supabase.table("usuario") \
             .select("id_usuario, nombre, apellido") \
             .eq("id_rol", 2) \
             .eq("estado", True) \
-            .order("apellido", desc=False) \
-            .execute()
+            .order("apellido", desc=False)
+
+        if org_users is not None:
+            if len(org_users) == 0:
+                query = query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+            else:
+                query = query.in_("id_usuario", org_users)
+
+        response = query.execute()
         return response.data or []
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener emprendedores: {str(e)}")
@@ -205,13 +237,14 @@ async def asignar_mentores(request: AsignarMentoresRequest):
 
 
 @router.get("/emprendedores-con-mentor")
-async def obtener_emprendedores_con_mentor():
+async def obtener_emprendedores_con_mentor(admin_id: Optional[str] = Query(None)):
     """
     Obtiene todos los emprendedores que tienen mentor asignado activo,
-    incluyendo nombre del emprendimiento y datos del mentor.
+    incluyendo nombre del emprendimiento y datos del mentor (filtrados por organización del admin si aplica).
     """
     try:
         supabase: Client = get_supabase_client()
+        org_users = _get_org_user_ids(supabase, admin_id)
 
         # Obtener todas las asignaciones (toda fila = activa)
         response = supabase.table("asignacion_mentor")\
@@ -223,7 +256,15 @@ async def obtener_emprendedores_con_mentor():
 
         # IDs únicos para hacer queries por lotes
         ids_emprendedores = list({asig["id_emprendedor"] for asig in response.data})
-        ids_mentores = list({asig["id_mentor"] for asig in response.data})
+        if org_users is not None:
+            ids_emprendedores = [id_emp for id_emp in ids_emprendedores if id_emp in org_users]
+
+        if not ids_emprendedores:
+            return []
+
+        ids_mentores = list({asig["id_mentor"] for asig in response.data if asig["id_emprendedor"] in ids_emprendedores})
+        if not ids_mentores:
+            return []
 
         # Obtener datos de todos los emprendedores
         emps_resp = supabase.table("usuario")\

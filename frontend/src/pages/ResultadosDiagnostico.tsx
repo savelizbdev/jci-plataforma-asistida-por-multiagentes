@@ -52,6 +52,7 @@ const menuItems: MenuItem[] = [
     { label: 'Dashboard', path: '/mentor/home' },
     { label: 'Diagnósticos', path: '/mentor/diagnosticos' },
     { label: 'Generar Reportes', path: '/mentor/reportes' },
+    { label: 'Mis Programas', path: '/mentor/programas' },
 ];
 
 export const ResultadosDiagnostico = () => {

@@ -14,16 +14,17 @@ from app.models.mentor import (
     UpdateCalificacionResponse
 )
 from fastapi import HTTPException
-from typing import List
+from typing import List, Optional, Dict, Any
 
 
 class MentorService:
     def __init__(self):
         self.supabase = get_supabase_client()
 
-    async def get_dashboard_stats(self, id_mentor: str) -> MentorDashboardResponse:
+    async def get_dashboard_stats(self, id_mentor: str, id_programa: Optional[int] = None) -> MentorDashboardResponse:
         """
-        Obtiene estadísticas del dashboard para un mentor específico
+        Obtiene estadísticas del dashboard para un mentor específico,
+        opcionalmente filtrado por id_programa.
         """
         try:
             # 1. Obtener todos los emprendedores asignados al mentor
@@ -32,7 +33,33 @@ class MentorService:
                 .eq("id_mentor", id_mentor) \
                 .execute()
             
-            emprendedores_ids = [asig["id_emprendedor"] for asig in asignaciones_response.data]
+            emprendedores_ids = [asig["id_emprendedor"] for asig in (asignaciones_response.data or [])]
+
+            # Filtrar emprendedores por el programa seleccionado o por todos los programas donde el mentor está enrolado
+            if emprendedores_ids:
+                if id_programa:
+                    up_res = self.supabase.table("usuario_programa") \
+                        .select("id_usuario") \
+                        .eq("id_programa", id_programa) \
+                        .in_("id_usuario", emprendedores_ids) \
+                        .execute()
+                    emprendedores_ids = list({u["id_usuario"] for u in (up_res.data or [])})
+                else:
+                    mentor_progs_res = self.supabase.table("usuario_programa") \
+                        .select("id_programa") \
+                        .eq("id_usuario", id_mentor) \
+                        .execute()
+                    mentor_prog_ids = [p["id_programa"] for p in (mentor_progs_res.data or [])]
+                    if not mentor_prog_ids:
+                        emprendedores_ids = []
+                    else:
+                        up_res = self.supabase.table("usuario_programa") \
+                            .select("id_usuario") \
+                            .in_("id_programa", mentor_prog_ids) \
+                            .in_("id_usuario", emprendedores_ids) \
+                            .execute()
+                        emprendedores_ids = list({u["id_usuario"] for u in (up_res.data or [])})
+
             total_emprendedores = len(emprendedores_ids)
             
             if total_emprendedores == 0:
@@ -140,9 +167,10 @@ class MentorService:
 
     # ==================== MÉTODOS PARA RESULTADOS DE DIAGNÓSTICO ====================
 
-    async def get_emprendedores_asignados(self, id_mentor: str) -> List[EmprendedorAsignado]:
+    async def get_emprendedores_asignados(self, id_mentor: str, id_programa: Optional[int] = None) -> List[EmprendedorAsignado]:
         """
-        Obtiene la lista de emprendedores asignados a un mentor
+        Obtiene la lista de emprendedores asignados a un mentor,
+        opcionalmente filtrada por id_programa.
         Ordenado alfabéticamente por nombre y apellido
         """
         try:
@@ -152,8 +180,33 @@ class MentorService:
                 .eq("id_mentor", id_mentor) \
                 .execute()
             
-            emprendedores_ids = [asig["id_emprendedor"] for asig in asignaciones_response.data]
+            emprendedores_ids = [asig["id_emprendedor"] for asig in (asignaciones_response.data or [])]
             
+            # Filtrar emprendedores por el programa seleccionado o por todos los programas donde el mentor está enrolado
+            if emprendedores_ids:
+                if id_programa:
+                    up_res = self.supabase.table("usuario_programa") \
+                        .select("id_usuario") \
+                        .eq("id_programa", id_programa) \
+                        .in_("id_usuario", emprendedores_ids) \
+                        .execute()
+                    emprendedores_ids = list({u["id_usuario"] for u in (up_res.data or [])})
+                else:
+                    mentor_progs_res = self.supabase.table("usuario_programa") \
+                        .select("id_programa") \
+                        .eq("id_usuario", id_mentor) \
+                        .execute()
+                    mentor_prog_ids = [p["id_programa"] for p in (mentor_progs_res.data or [])]
+                    if not mentor_prog_ids:
+                        emprendedores_ids = []
+                    else:
+                        up_res = self.supabase.table("usuario_programa") \
+                            .select("id_usuario") \
+                            .in_("id_programa", mentor_prog_ids) \
+                            .in_("id_usuario", emprendedores_ids) \
+                            .execute()
+                        emprendedores_ids = list({u["id_usuario"] for u in (up_res.data or [])})
+
             if not emprendedores_ids:
                 return []
             

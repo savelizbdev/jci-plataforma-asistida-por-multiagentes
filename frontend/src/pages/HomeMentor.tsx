@@ -30,10 +30,16 @@ ChartJS.register(
     Legend
 );
 
+import { programaService } from '../services/programaService';
+import { ProgramaItem } from '../types/programa';
+import { ProgramaSelector } from '../components/programas/ProgramaSelector';
+import { CodigoProgramaModal } from '../components/programas/CodigoProgramaModal';
+
 const menuItems: MenuItem[] = [
     { label: 'Dashboard', path: '/mentor/home' },
     { label: 'Diagnósticos', path: '/mentor/diagnosticos' },
     { label: 'Generar Reportes', path: '/mentor/reportes' },
+    { label: 'Mis Programas', path: '/mentor/programas' },
 ];
 
 export const HomeMentor = () => {
@@ -42,14 +48,47 @@ export const HomeMentor = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    useEffect(() => {
-        const fetchDashboardStats = async () => {
-            if (!user) return;
+    // Estados de programas
+    const [programas, setProgramas] = useState<ProgramaItem[]>([]);
+    const [selectedProgramaId, setSelectedProgramaId] = useState<number | null>(null);
+    const [loadingProgramas, setLoadingProgramas] = useState(true);
+    const [showProgramModal, setShowProgramModal] = useState(false);
 
+    // Cargar programas del mentor
+    useEffect(() => {
+        if (!user?.id_usuario) return;
+        const fetchProgramas = async () => {
+            setLoadingProgramas(true);
+            try {
+                const progs = await programaService.obtenerMisProgramas(user.id_usuario);
+                setProgramas(progs);
+                if (progs.length === 0) {
+                    setShowProgramModal(true);
+                } else if (!selectedProgramaId) {
+                    setSelectedProgramaId(progs[0].id_programa);
+                }
+            } catch (err) {
+                console.error('Error al cargar programas del mentor:', err);
+            } finally {
+                setLoadingProgramas(false);
+            }
+        };
+        fetchProgramas();
+    }, [user?.id_usuario]);
+
+    // Cargar estadísticas según el programa seleccionado
+    useEffect(() => {
+        if (!user || loadingProgramas) return;
+
+        const fetchDashboardStats = async () => {
             try {
                 setLoading(true);
-                const data = await mentorService.getMentorDashboard(user.id_usuario);
+                const data = await mentorService.getMentorDashboard(
+                    user.id_usuario,
+                    selectedProgramaId ?? undefined
+                );
                 setStats(data);
+                setError(null);
             } catch (err) {
                 console.error('Error al cargar estadísticas:', err);
                 setError('Error al cargar las estadísticas del dashboard');
@@ -59,7 +98,7 @@ export const HomeMentor = () => {
         };
 
         fetchDashboardStats();
-    }, [user]);
+    }, [user, selectedProgramaId, loadingProgramas]);
 
 
 
@@ -177,16 +216,24 @@ export const HomeMentor = () => {
         <Layout menuItems={menuItems} onLogout={logout}>
             <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
                 {/* Header */}
-                <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div>
-                        <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-800 tracking-tight mb-1 sm:mb-2">
-                            Dashboard de Mentor
-                        </h1>
+                        <div className="flex items-center gap-3 mb-1">
+                            <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-800 tracking-tight">
+                                Dashboard de Mentor
+                            </h1>
+                            <ProgramaSelector
+                                programas={programas}
+                                selectedProgramaId={selectedProgramaId}
+                                onSelectPrograma={(id) => setSelectedProgramaId(id)}
+                                loading={loadingProgramas}
+                            />
+                        </div>
                         <p className="text-neutral-500 text-sm sm:text-base font-medium tracking-wide">
                             Estadísticas de tus emprendedores asignados
                         </p>
                     </div>
-                    <div className="mt-2 sm:mt-0">
+                    <div className="mt-2 sm:mt-0 flex items-center gap-4">
                         <img src="/logo-activa-mujer.webp" alt="Activa Mujer" className="h-14 sm:h-16 w-auto object-contain" />
                     </div>
                 </div>
@@ -284,6 +331,20 @@ export const HomeMentor = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Modal para ingresar código si no tiene programas */}
+            {user?.id_usuario && (
+                <CodigoProgramaModal
+                    isOpen={showProgramModal}
+                    userId={user.id_usuario}
+                    isDismissable={programas.length > 0}
+                    onClose={() => setShowProgramModal(false)}
+                    onSuccess={() => {
+                        setShowProgramModal(false);
+                        window.location.reload();
+                    }}
+                />
+            )}
         </Layout>
     );
 };

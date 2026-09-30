@@ -20,6 +20,8 @@ import { AsignacionMentores } from './pages/AsignacionMentores';
 import { TareasEmprendedor } from './pages/TareasEmprendedor';
 import { GenerarReportesAdmin } from './pages/GenerarReportesAdmin';
 import { SeguimientoTareas } from './pages/SeguimientoTareas';
+import { MisProgramas } from './pages/MisProgramas';
+import { SuperAdminHome } from './pages/SuperAdminHome';
 
 function AppRoutes() {
     const { user, loading } = useAuth();
@@ -34,6 +36,7 @@ function AppRoutes() {
         if (user.id_rol === 1) return '/admin/home';
         if (user.id_rol === 2) return '/emprendedor/home';
         if (user.id_rol === 3) return '/mentor/home';
+        if (user.id_rol === 4) return '/superadmin/home';
         return '/login';
     };
 
@@ -68,6 +71,14 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             />
+            <Route
+                path="/emprendedor/programas"
+                element={
+                    <ProtectedRoute allowedRoles={[2]}>
+                        <MisProgramas />
+                    </ProtectedRoute>
+                }
+            />
 
             {/* Rutas protegidas - Mentor */}
             <Route
@@ -91,6 +102,14 @@ function AppRoutes() {
                 element={
                     <ProtectedRoute allowedRoles={[3]}>
                         <GenerarReportes />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/mentor/programas"
+                element={
+                    <ProtectedRoute allowedRoles={[3]}>
+                        <MisProgramas />
                     </ProtectedRoute>
                 }
             />
@@ -133,6 +152,16 @@ function AppRoutes() {
                 element={
                     <ProtectedRoute allowedRoles={[1]}>
                         <SeguimientoTareas />
+                    </ProtectedRoute>
+                }
+            />
+
+            {/* Rutas protegidas - Super Administrador */}
+            <Route
+                path="/superadmin/home"
+                element={
+                    <ProtectedRoute allowedRoles={[4]}>
+                        <SuperAdminHome />
                     </ProtectedRoute>
                 }
             />

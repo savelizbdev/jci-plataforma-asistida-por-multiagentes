@@ -2,9 +2,9 @@
 Router de Autenticación
 Endpoints para login y gestión de sesión
 """
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Query
 from pydantic import BaseModel
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from app.services.auth_service import AuthService
 from app.models.user import UserResponse
 
@@ -157,9 +157,9 @@ async def update_user_profile(user_id: str, profile_data: UserUpdateRequest):
 
 
 @router.get("/users", response_model=list[UserResponse])
-async def get_all_users():
+async def get_all_users(admin_id: Optional[str] = Query(None)):
     """
-    Obtiene la lista de todos los usuarios del sistema
+    Obtiene la lista de usuarios del sistema (o los de la organización del admin)
     
     Returns:
         list[UserResponse]: Lista de usuarios con sus datos y roles
@@ -167,7 +167,7 @@ async def get_all_users():
     auth_service = AuthService()
     
     try:
-        users = await auth_service.get_all_users()
+        users = await auth_service.get_all_users(admin_id=admin_id)
         return users
     
     except Exception as e:

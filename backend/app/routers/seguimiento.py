@@ -7,13 +7,23 @@ Router de seguimiento de tareas.
 import os
 import httpx
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, HTTPException, status
+from typing import Optional
+from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, status, Query
 from app.services.supabase_client import get_supabase_client
+from app.services.org_filter import get_admin_org_user_ids
 
 router = APIRouter(prefix="/seguimiento", tags=["seguimiento"])
 
 IA_BASE_URL = os.environ.get("IA_BASE_URL", "http://localhost:9000")
 APP_NAME = "multi_agente_seguimiento"
+
+# Variable de estado temporal para el último admin_id que disparó el seguimiento
+_last_admin_id: Optional[str] = None
+
+
+class EjecutarSeguimientoRequest(BaseModel):
+    admin_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -22,7 +32,7 @@ APP_NAME = "multi_agente_seguimiento"
 # ---------------------------------------------------------------------------
 
 @router.get("/tareas-proximas")
-async def obtener_tareas_proximas():
+async def obtener_tareas_proximas(admin_id: Optional[str] = Query(None)):
     """
     Devuelve todas las tareas pendientes que vencen en los próximos 2 días.
     Incluye el nombre y email del emprendedor para que el agente pueda enviarle un correo.
@@ -32,15 +42,24 @@ async def obtener_tareas_proximas():
         ahora = datetime.now(timezone.utc)
         limite = ahora + timedelta(days=2)
 
+        effective_admin_id = admin_id or _last_admin_id
+        org_users = get_admin_org_user_ids(effective_admin_id, supabase) if effective_admin_id else None
+
         # Buscar tareas pendientes que vencen dentro de 2 días
-        resp = (
+        query = (
             supabase.table("tarea")
             .select("id_tarea, id_usuario, titulo, descripcion, fecha_expiracion, estado")
             .neq("estado", "Completada")
             .lte("fecha_expiracion", limite.isoformat())
             .gte("fecha_expiracion", ahora.isoformat())
-            .execute()
         )
+
+        if org_users is not None:
+            if len(org_users) == 0:
+                return {"cantidad": 0, "tareas": [], "mensaje": "No hay tareas próximas a vencer en la organización."}
+            query = query.in_("id_usuario", org_users)
+
+        resp = query.execute()
 
         tareas = resp.data or []
 
@@ -86,15 +105,15 @@ async def obtener_tareas_proximas():
 # ---------------------------------------------------------------------------
 
 @router.post("/ejecutar")
-async def ejecutar_seguimiento():
+async def ejecutar_seguimiento(request: Optional[EjecutarSeguimientoRequest] = None):
     """
     Dispara el agente de seguimiento de tareas.
     El agente consulta `/seguimiento/tareas-proximas`, obtiene las tareas
     que vencen en los próximos 2 días y envía correos de recordatorio.
-
-    Este endpoint es pensado para ser llamado por un cron job diario.
     """
+    global _last_admin_id
     try:
+        _last_admin_id = request.admin_id if request else None
         user_id = "sistema"
         session_id = "session_seguimiento"
 

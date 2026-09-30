@@ -35,16 +35,20 @@ export interface QuitarAsignacionResponse {
 /**
  * Obtiene todos los usuarios con rol Mentor (id_rol = 3)
  */
-export const obtenerMentores = async (): Promise<Usuario[]> => {
-    const response = await api.get<Usuario[]>('/asignaciones/mentores');
+export const obtenerMentores = async (adminId?: string): Promise<Usuario[]> => {
+    const response = await api.get<Usuario[]>('/asignaciones/mentores', {
+        params: adminId ? { admin_id: adminId } : {},
+    });
     return response.data;
 };
 
 /**
  * Obtiene emprendedores sin mentor asignado
  */
-export const obtenerEmprendedoresSinMentor = async (): Promise<Usuario[]> => {
-    const response = await api.get<Usuario[]>('/asignaciones/emprendedores-sin-mentor');
+export const obtenerEmprendedoresSinMentor = async (adminId?: string): Promise<Usuario[]> => {
+    const response = await api.get<Usuario[]>('/asignaciones/emprendedores-sin-mentor', {
+        params: adminId ? { admin_id: adminId } : {},
+    });
     return response.data;
 };
 
@@ -61,8 +65,10 @@ export const asignarMentores = async (
 /**
  * Obtiene emprendedores que ya tienen un mentor asignado
  */
-export const obtenerEmprendedoresConMentor = async (): Promise<EmprendedorConMentor[]> => {
-    const response = await api.get<EmprendedorConMentor[]>('/asignaciones/emprendedores-con-mentor');
+export const obtenerEmprendedoresConMentor = async (adminId?: string): Promise<EmprendedorConMentor[]> => {
+    const response = await api.get<EmprendedorConMentor[]>('/asignaciones/emprendedores-con-mentor', {
+        params: adminId ? { admin_id: adminId } : {},
+    });
     return response.data;
 };
 

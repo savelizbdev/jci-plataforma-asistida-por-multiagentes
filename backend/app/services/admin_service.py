@@ -14,41 +14,61 @@ class AdminService:
     def __init__(self):
         self.supabase = get_supabase_client()
     
-    async def get_dashboard_stats(self) -> AdminDashboardResponse:
+    async def get_dashboard_stats(self, admin_id: Optional[str] = None) -> AdminDashboardResponse:
         """
-        Obtiene estadísticas globales para el dashboard del administrador
-        
-        Returns:
-            AdminDashboardResponse: Estadísticas globales
-        
-        Raises:
-            HTTPException: Si hay error al obtener las estadísticas
+        Obtiene estadísticas globales para el dashboard del administrador,
+        filtradas por la organización del administrador si se especifica.
         """
         try:
+            # Obtener usuarios filtrados si se proporciona admin_id
+            filtered_user_ids = None
+            if admin_id:
+                from app.services.org_filter import get_admin_org_user_ids
+                filtered_user_ids = get_admin_org_user_ids(admin_id, self.supabase)
+
             # 1. Total de emprendedores (rol = 2, estado = true)
-            emprendedores_response = self.supabase.table("usuario") \
+            emp_query = self.supabase.table("usuario") \
                 .select("id_usuario", count="exact") \
                 .eq("id_rol", 2) \
-                .eq("estado", True) \
-                .execute()
+                .eq("estado", True)
             
+            if filtered_user_ids is not None:
+                if len(filtered_user_ids) == 0:
+                    emp_query = emp_query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+                else:
+                    emp_query = emp_query.in_("id_usuario", filtered_user_ids)
+
+            emprendedores_response = emp_query.execute()
             total_emprendedores = emprendedores_response.count or 0
             
             # 2. Total de mentores activos (rol = 3, estado = true)
-            mentores_response = self.supabase.table("usuario") \
+            men_query = self.supabase.table("usuario") \
                 .select("id_usuario", count="exact") \
                 .eq("id_rol", 3) \
-                .eq("estado", True) \
-                .execute()
+                .eq("estado", True)
             
+            if filtered_user_ids is not None:
+                if len(filtered_user_ids) == 0:
+                    men_query = men_query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+                else:
+                    men_query = men_query.in_("id_usuario", filtered_user_ids)
+
+            mentores_response = men_query.execute()
             total_mentores_activos = mentores_response.count or 0
             
             # 3. Diagnósticos completados (con resultado no vacío)
-            diagnosticos_response = self.supabase.table("diagnostico") \
+            diag_query = self.supabase.table("diagnostico") \
                 .select("id_usuario, fecha_inicio, id_diagnostico, resultado, puntaje_total, puntaje_cf, puntaje_gp, puntaje_m, puntaje_v, puntaje_tp, puntaje_rh") \
                 .not_.is_("resultado", "null") \
-                .neq("resultado", "") \
-                .execute()
+                .neq("resultado", "")
+            
+            if filtered_user_ids is not None:
+                if len(filtered_user_ids) == 0:
+                    diag_query = diag_query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+                else:
+                    diag_query = diag_query.in_("id_usuario", filtered_user_ids)
+
+            diagnosticos_response = diag_query.execute()
             
             diagnosticos_data = diagnosticos_response.data
             

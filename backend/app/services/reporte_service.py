@@ -7,7 +7,7 @@ import os
 import re
 import tempfile
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from fastapi import HTTPException, status
 
 # PDF generation
@@ -81,6 +81,30 @@ class ReporteService:
                 )
             
             emprendedor_ids = [asig["id_emprendedor"] for asig in asignaciones_response.data]
+
+            # Filtrar emprendedores que estén enrolados en los programas del mentor
+            mentor_progs_res = self.supabase.table("usuario_programa") \
+                .select("id_programa") \
+                .eq("id_usuario", request.id_mentor) \
+                .execute()
+            mentor_prog_ids = [p["id_programa"] for p in (mentor_progs_res.data or [])]
+            if not mentor_prog_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No hay emprendedores enrolados en tus programas"
+                )
+
+            up_res = self.supabase.table("usuario_programa") \
+                .select("id_usuario") \
+                .in_("id_programa", mentor_prog_ids) \
+                .in_("id_usuario", emprendedor_ids) \
+                .execute()
+            emprendedor_ids = list({u["id_usuario"] for u in (up_res.data or [])})
+            if not emprendedor_ids:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No hay emprendedores asignados enrolados en tus programas"
+                )
             
             # 3. Obtener diagnósticos en el rango de fechas
             diagnosticos_response = self.supabase.table("diagnostico") \
@@ -244,19 +268,30 @@ class ReporteService:
     
     async def get_reporte_data_admin(self, request: ReporteAdminRequest) -> ReporteData:
         """
-        Obtiene todos los datos para generar reporte de administrador (todos los emprendedores)
+        Obtiene todos los datos para generar reporte de administrador (todos los emprendedores de su organización)
         """
         try:
-            # 1. Obtener TODOS los emprendedores (rol 2)
-            roles_response = self.supabase.table("usuario") \
+            from app.services.org_filter import get_admin_org_user_ids
+
+            # 1. Obtener emprendedores (rol 2), filtrados por la organización del admin si aplica
+            emp_query = self.supabase.table("usuario") \
                 .select("id_usuario") \
-                .eq("id_rol", 2) \
-                .execute()
+                .eq("id_rol", 2)
+            
+            if request.admin_id:
+                org_users = get_admin_org_user_ids(request.admin_id, self.supabase)
+                if org_users is not None:
+                    if len(org_users) == 0:
+                        emp_query = emp_query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+                    else:
+                        emp_query = emp_query.in_("id_usuario", org_users)
+
+            roles_response = emp_query.execute()
             
             if not roles_response.data or len(roles_response.data) == 0:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No hay emprendedores registrados en el sistema"
+                    detail="No hay emprendedores registrados en la organización"
                 )
             
             emprendedor_ids = [r["id_usuario"] for r in roles_response.data]
@@ -2000,17 +2035,29 @@ class ReporteService:
     # REPORTE COMPARATIVO DE TODOS LOS MENTORES
     # ══════════════════════════════════════════════════════════════
 
-    async def get_reporte_data_todos_mentores(self) -> ReporteDataTodosMentores:
+    async def get_reporte_data_todos_mentores(self, admin_id: Optional[str] = None) -> ReporteDataTodosMentores:
         """Obtiene estadísticas agrupadas por mentor para el reporte comparativo."""
         try:
-            # 1. Todos los mentores activos
-            mentores_resp = self.supabase.table("usuario") \
+            from app.services.org_filter import get_admin_org_user_ids
+
+            # 1. Mentores activos (filtrados por organización si se especifica admin_id)
+            ment_query = self.supabase.table("usuario") \
                 .select("id_usuario, nombre, apellido") \
                 .eq("id_rol", 3) \
-                .eq("estado", True) \
-                .execute()
+                .eq("estado", True)
+
+            org_users = None
+            if admin_id:
+                org_users = get_admin_org_user_ids(admin_id, self.supabase)
+                if org_users is not None:
+                    if len(org_users) == 0:
+                        ment_query = ment_query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+                    else:
+                        ment_query = ment_query.in_("id_usuario", org_users)
+
+            mentores_resp = ment_query.execute()
             if not mentores_resp.data:
-                raise HTTPException(status_code=404, detail="No hay mentores registrados")
+                raise HTTPException(status_code=404, detail="No hay mentores registrados en la organización")
 
             mentores_raw = mentores_resp.data
             mentor_ids = [m["id_usuario"] for m in mentores_raw]

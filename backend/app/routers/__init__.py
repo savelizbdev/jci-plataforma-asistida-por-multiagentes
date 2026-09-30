@@ -12,6 +12,7 @@ from app.routers.admin import router as admin_router
 from app.routers.tarea import router as tarea_router
 from app.routers.reporte import router as reporte_router
 from app.routers.seguimiento import router as seguimiento_router
+from app.routers.programas import router as programas_router
 
 __all__ = [
     "auth_router",
@@ -24,4 +25,5 @@ __all__ = [
     "tarea_router",
     "reporte_router",
     "seguimiento_router",
+    "programas_router",
 ]

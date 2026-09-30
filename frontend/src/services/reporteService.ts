@@ -30,8 +30,12 @@ export const reporteService = {
     },
 
     /** Reporte PDF comparativo de todos los mentores */
-    async generarReporteTodosMentores(): Promise<Blob> {
-        const response = await api.post<Blob>('/reporte/generar-todos-mentores', {}, { responseType: 'blob' });
+    async generarReporteTodosMentores(adminId?: string): Promise<Blob> {
+        const response = await api.post<Blob>(
+            '/reporte/generar-todos-mentores',
+            adminId ? { admin_id: adminId } : {},
+            { responseType: 'blob' }
+        );
         return response.data;
     },
 };

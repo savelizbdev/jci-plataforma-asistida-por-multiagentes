@@ -7,11 +7,13 @@ import { User } from '../types/user';
 
 export const userService = {
     /**
-     * Obtiene todos los usuarios del sistema
+     * Obtiene todos los usuarios del sistema (o los de la organización del admin)
      */
-    async getAllUsers(): Promise<User[]> {
+    async getAllUsers(adminId?: string): Promise<User[]> {
         try {
-            const response = await api.get<User[]>('/auth/users');
+            const response = await api.get<User[]>('/auth/users', {
+                params: adminId ? { admin_id: adminId } : {},
+            });
             return response.data;
         } catch (error: any) {
             throw new Error(

@@ -30,12 +30,17 @@ class ReporteRequest(BaseModel):
 class ReporteAdminRequest(BaseModel):
     fecha_inicio: datetime
     fecha_fin: datetime
+    admin_id: Optional[str] = None
 
     @validator('fecha_fin')
     def validate_dates(cls, v, values):
         if 'fecha_inicio' in values and v <= values['fecha_inicio']:
             raise ValueError('La fecha fin debe ser posterior a la fecha inicio')
         return v
+
+
+class ReporteTodosMentoresRequest(BaseModel):
+    admin_id: Optional[str] = None
 
 
 class ReporteMentorRequest(BaseModel):

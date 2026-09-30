@@ -31,21 +31,44 @@ ChartJS.register(
 );
 
 
+import { programaService } from '../services/programaService';
+import { CodigoProgramaModal } from '../components/programas/CodigoProgramaModal';
+
 export const HomeAdministrador = () => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
     const [dashboardData, setDashboardData] = useState<AdminDashboardData | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [showProgramModal, setShowProgramModal] = useState(false);
+    const [organizacionNombre, setOrganizacionNombre] = useState<string | null>(null);
 
+    // Verificar si el administrador ya está vinculado a una organización
+    useEffect(() => {
+        if (!user?.id_usuario) return;
+        const checkAdminOrg = async () => {
+            try {
+                const progs = await programaService.obtenerMisProgramas(user.id_usuario);
+                if (progs.length === 0) {
+                    setShowProgramModal(true);
+                } else {
+                    setOrganizacionNombre(progs[0].nombre_organizacion);
+                }
+            } catch (err) {
+                console.error('Error al verificar organización:', err);
+            }
+        };
+        checkAdminOrg();
+    }, [user?.id_usuario]);
 
-
-    // Cargar datos del dashboard
+    // Cargar datos del dashboard filtrados por la organización del admin
     useEffect(() => {
         const fetchDashboard = async () => {
+            if (!user?.id_usuario) return;
             try {
                 setLoading(true);
-                const data = await adminService.getAdminDashboard();
+                const data = await adminService.getAdminDashboard(user.id_usuario);
                 setDashboardData(data);
+                setError(null);
             } catch (err) {
                 console.error('Error al cargar dashboard del administrador:', err);
                 setError('Error al cargar los datos del dashboard');
@@ -55,7 +78,7 @@ export const HomeAdministrador = () => {
         };
 
         fetchDashboard();
-    }, []);
+    }, [user?.id_usuario]);
 
     // Datos para el gráfico de barras
     const chartData = dashboardData ? {
@@ -148,13 +171,24 @@ export const HomeAdministrador = () => {
         <Layout menuItems={ADMIN_MENU_ITEMS} onLogout={logout}>
             <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
                 {/* Header */}
-                <div className="mb-4 sm:mb-6">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-800 tracking-tight mb-1 sm:mb-2">
-                        Dashboard Administrador
-                    </h1>
-                    <p className="text-neutral-500 text-sm sm:text-base font-medium tracking-wide">
-                        Estadísticas globales del sistema
-                    </p>
+                <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-3 mb-1">
+                            <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-800 tracking-tight">
+                                Dashboard Administrador
+                            </h1>
+                            {organizacionNombre && (
+                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm">
+                                    {organizacionNombre}
+                                </span>
+                            )}
+                        </div>
+                        <p className="text-neutral-500 text-sm sm:text-base font-medium tracking-wide">
+                            {organizacionNombre
+                                ? `Estadísticas de los programas pertenecientes a ${organizacionNombre}`
+                                : 'Estadísticas globales del sistema'}
+                        </p>
+                    </div>
                 </div>
 
                 {/* KPI Cards Grid */}
@@ -288,6 +322,19 @@ export const HomeAdministrador = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Modal para ingresar código si el administrador no tiene organización vinculada */}
+            {user?.id_usuario && (
+                <CodigoProgramaModal
+                    isOpen={showProgramModal}
+                    userId={user.id_usuario}
+                    isDismissable={false}
+                    onSuccess={() => {
+                        setShowProgramModal(false);
+                        window.location.reload();
+                    }}
+                />
+            )}
         </Layout>
     );
 };

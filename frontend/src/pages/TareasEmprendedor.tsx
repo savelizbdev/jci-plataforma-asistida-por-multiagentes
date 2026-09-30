@@ -15,6 +15,7 @@ const menuItems: MenuItem[] = [
     { label: 'Inicio', path: '/emprendedor/home' },
     { label: 'Mis Tareas', path: '/emprendedor/tareas' },
     { label: 'Diagnóstico IA', path: '/emprendedor/diagnostico-ia' },
+    { label: 'Mis Programas', path: '/emprendedor/programas' },
 ];
 
 export const TareasEmprendedor = () => {

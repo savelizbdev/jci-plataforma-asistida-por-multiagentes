@@ -1,8 +1,9 @@
+from typing import Optional
 from fastapi import APIRouter
 from fastapi.responses import Response
 from app.models.reporte import (
     ReporteRequest, ReporteAdminRequest, ReporteEmprendedorRequest,
-    ReporteMentorRequest
+    ReporteMentorRequest, ReporteTodosMentoresRequest
 )
 from app.services.reporte_service import reporte_service
 
@@ -24,7 +25,7 @@ async def generar_reporte(request: ReporteRequest):
 
 @router.post("/generar-admin")
 async def generar_reporte_admin(request: ReporteAdminRequest):
-    """Reporte PDF con estadísticas de TODOS los emprendedores del sistema"""
+    """Reporte PDF con estadísticas de los emprendedores de la organización del admin"""
     reporte_data = await reporte_service.get_reporte_data_admin(request)
     pdf_bytes = await reporte_service.generate_pdf(reporte_data)
     filename = f"reporte_admin_{request.fecha_inicio.strftime('%Y%m%d')}_{request.fecha_fin.strftime('%Y%m%d')}.pdf"
@@ -62,9 +63,10 @@ async def generar_reporte_mentor(request: ReporteMentorRequest):
 
 
 @router.post("/generar-todos-mentores")
-async def generar_reporte_todos_mentores():
-    """Reporte PDF comparativo de todos los mentores del sistema"""
-    reporte_data = await reporte_service.get_reporte_data_todos_mentores()
+async def generar_reporte_todos_mentores(request: Optional[ReporteTodosMentoresRequest] = None):
+    """Reporte PDF comparativo de todos los mentores de la organización del admin"""
+    admin_id = request.admin_id if request else None
+    reporte_data = await reporte_service.get_reporte_data_todos_mentores(admin_id=admin_id)
     pdf_bytes = await reporte_service.generate_pdf_todos_mentores(reporte_data)
     filename = "reporte_comparativo_mentores.pdf"
     return Response(
@@ -72,3 +74,4 @@ async def generar_reporte_todos_mentores():
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
+

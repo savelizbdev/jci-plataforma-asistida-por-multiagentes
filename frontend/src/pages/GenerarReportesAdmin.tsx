@@ -79,7 +79,7 @@ const PANELS = [
 ];
 
 export const GenerarReportesAdmin = () => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
 
     // Estado por panel
     const [activePanel, setActivePanel] = useState<PanelKey | null>(null);
@@ -100,17 +100,19 @@ export const GenerarReportesAdmin = () => {
 
     // Cargar listas al abrir paneles que las necesitan
     useEffect(() => {
-        if ((activePanel === 'mentor-especifico' || activePanel === 'emprendedor-especifico') && mentores.length === 0) {
+        if (!user?.id_usuario) return;
+        if (activePanel === 'mentor-especifico' || activePanel === 'emprendedor-especifico') {
             fetchLists();
         }
-    }, [activePanel]);
+    }, [activePanel, user?.id_usuario]);
 
     const fetchLists = async () => {
+        if (!user?.id_usuario) return;
         setLoadingLists(true);
         try {
             const [mentRes, empRes] = await Promise.all([
-                api.get('/asignaciones/mentores'),
-                api.get('/asignaciones/todos-emprendedores'),
+                api.get('/asignaciones/mentores', { params: { admin_id: user.id_usuario } }),
+                api.get('/asignaciones/todos-emprendedores', { params: { admin_id: user.id_usuario } }),
             ]);
             setMentores(mentRes.data || []);
             setEmprendedores(empRes.data || []);
@@ -145,7 +147,7 @@ export const GenerarReportesAdmin = () => {
             let blob: Blob;
 
             if (activePanel === 'todos-mentores') {
-                blob = await reporteService.generarReporteTodosMentores();
+                blob = await reporteService.generarReporteTodosMentores(user?.id_usuario);
                 downloadPdf(blob, `reporte_todos_mentores.pdf`);
 
             } else if (activePanel === 'mentor-especifico') {
@@ -160,6 +162,7 @@ export const GenerarReportesAdmin = () => {
                 blob = await reporteService.generarReporteAdmin({
                     fecha_inicio: new Date(fechaInicio).toISOString(),
                     fecha_fin: new Date(fechaFin).toISOString(),
+                    admin_id: user?.id_usuario,
                 });
                 downloadPdf(blob, `reporte_todos_emprendedores_${fechaInicio}_${fechaFin}.pdf`);
 

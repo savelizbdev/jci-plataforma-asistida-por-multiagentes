@@ -1,7 +1,7 @@
 """
 Router para operaciones del Mentor
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from app.services.mentor_service import mentor_service
 from app.models.mentor import (
     MentorDashboardResponse,
@@ -11,24 +11,18 @@ from app.models.mentor import (
     UpdateCalificacionRequest,
     UpdateCalificacionResponse
 )
-from typing import List
+from typing import List, Optional
 
 router = APIRouter(prefix="/mentor", tags=["mentor"])
 
 
 @router.get("/dashboard/{id_mentor}", response_model=MentorDashboardResponse)
-async def get_mentor_dashboard(id_mentor: str):
+async def get_mentor_dashboard(id_mentor: str, id_programa: Optional[int] = Query(None)):
     """
-    Obtiene las estadísticas del dashboard para un mentor específico
-    
-    Args:
-        id_mentor: ID del mentor
-        
-    Returns:
-        MentorDashboardResponse con todas las estadísticas
+    Obtiene las estadísticas del dashboard para un mentor específico (opcionalmente filtrado por programa)
     """
     try:
-        stats = await mentor_service.get_dashboard_stats(id_mentor)
+        stats = await mentor_service.get_dashboard_stats(id_mentor, id_programa=id_programa)
         return stats
     except HTTPException as e:
         raise e
@@ -42,19 +36,12 @@ async def get_mentor_dashboard(id_mentor: str):
 # ==================== ENDPOINTS PARA RESULTADOS DE DIAGNÓSTICO ====================
 
 @router.get("/emprendedores/{id_mentor}", response_model=List[EmprendedorAsignado])
-async def get_emprendedores_asignados(id_mentor: str):
+async def get_emprendedores_asignados(id_mentor: str, id_programa: Optional[int] = Query(None)):
     """
-    Obtiene la lista de emprendedores asignados a un mentor
-    Ordenados alfabéticamente
-    
-    Args:
-        id_mentor: ID del mentor
-        
-    Returns:
-        Lista de emprendedores asignados
+    Obtiene la lista de emprendedores asignados a un mentor (opcionalmente filtrado por programa)
     """
     try:
-        return await mentor_service.get_emprendedores_asignados(id_mentor)
+        return await mentor_service.get_emprendedores_asignados(id_mentor, id_programa=id_programa)
     except HTTPException as e:
         raise e
     except Exception as e:

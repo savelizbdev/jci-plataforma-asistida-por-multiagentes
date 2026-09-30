@@ -211,18 +211,27 @@ class AuthService:
                 detail=f"Error al actualizar perfil: {str(e)}"
             )
     
-    async def get_all_users(self) -> list[UserResponse]:
+    async def get_all_users(self, admin_id: Optional[str] = None) -> list[UserResponse]:
         """
-        Obtiene todos los usuarios del sistema con sus roles
-        
-        Returns:
-            list[UserResponse]: Lista de todos los usuarios
+        Obtiene todos los usuarios del sistema (o los pertenecientes a la organización del admin) con sus roles
         """
         try:
-            # Consultar todos los usuarios
-            response = self.supabase.table("usuario").select(
+            from app.services.org_filter import get_admin_org_user_ids
+
+            query = self.supabase.table("usuario").select(
                 "id_usuario, email, nombre, apellido, id_rol, estado, habilitado_diag, celular"
-            ).execute()
+            )
+
+            # Si se proporciona admin_id, filtrar solo los usuarios de su organización
+            if admin_id:
+                org_user_ids = get_admin_org_user_ids(admin_id, self.supabase)
+                if org_user_ids is not None:
+                    if len(org_user_ids) == 0:
+                        query = query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+                    else:
+                        query = query.in_("id_usuario", org_user_ids)
+
+            response = query.execute()
             
             users = []
             

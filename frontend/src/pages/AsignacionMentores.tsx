@@ -19,7 +19,7 @@ import { ADMIN_MENU_ITEMS } from '../constants/adminMenu';
 
 
 export const AsignacionMentores = () => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
 
     const [mentores, setMentores] = useState<Usuario[]>([]);
     const [emprendedores, setEmprendedores] = useState<Usuario[]>([]);
@@ -30,19 +30,18 @@ export const AsignacionMentores = () => {
     const [guardando, setGuardando] = useState(false);
     const [quitando, setQuitando] = useState<string | null>(null); // id_emprendedor que se está quitando
 
-
-
     useEffect(() => {
+        if (!user?.id_usuario) return;
         cargarDatos();
-    }, []);
+    }, [user?.id_usuario]);
 
     const cargarDatos = async () => {
         try {
             setLoading(true);
             const [mentoresData, emprendedoresData, conMentorData] = await Promise.all([
-                obtenerMentores(),
-                obtenerEmprendedoresSinMentor(),
-                obtenerEmprendedoresConMentor()
+                obtenerMentores(user?.id_usuario),
+                obtenerEmprendedoresSinMentor(user?.id_usuario),
+                obtenerEmprendedoresConMentor(user?.id_usuario)
             ]);
 
             setMentores(mentoresData);

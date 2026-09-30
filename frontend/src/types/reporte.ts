@@ -11,6 +11,7 @@ export interface ReporteRequest {
 export interface ReporteAdminRequest {
     fecha_inicio: string; // ISO string
     fecha_fin: string; // ISO string
+    admin_id?: string;
 }
 
 export interface ReporteEmprendedorRequest {

@@ -21,7 +21,7 @@ interface EjecucionLog {
 }
 
 export const SeguimientoTareas = () => {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
     const [loading, setLoading] = useState(false);
     const [historial, setHistorial] = useState<EjecucionLog[]>([]);
     const [contadorId, setContadorId] = useState(1);
@@ -30,7 +30,7 @@ export const SeguimientoTareas = () => {
         setLoading(true);
         const timestamp = new Date();
         try {
-            const result = await adminService.ejecutarSeguimiento();
+            const result = await adminService.ejecutarSeguimiento(user?.id_usuario);
             setHistorial(prev => [{
                 id: contadorId,
                 timestamp,
