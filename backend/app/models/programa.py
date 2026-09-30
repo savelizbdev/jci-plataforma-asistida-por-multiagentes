@@ -16,7 +16,18 @@ class CrearOrganizacionRequest(BaseModel):
     descripcion: Optional[str] = None
 
 
+class ActualizarOrganizacionRequest(BaseModel):
+    nombre: str
+    descripcion: Optional[str] = None
+
+
 class CrearProgramaRequest(BaseModel):
+    id_organizacion: int
+    nombre: str
+    codigo: str = Field(..., min_length=8, max_length=8)
+
+
+class ActualizarProgramaRequest(BaseModel):
     id_organizacion: int
     nombre: str
     codigo: str = Field(..., min_length=8, max_length=8)

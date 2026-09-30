@@ -6,7 +6,9 @@ from typing import List, Dict, Any, Optional
 from app.models.programa import (
     UnirseProgramaRequest,
     CrearOrganizacionRequest,
+    ActualizarOrganizacionRequest,
     CrearProgramaRequest,
+    ActualizarProgramaRequest,
     OrganizacionItem
 )
 from app.services.programa_service import programa_service
@@ -50,6 +52,14 @@ async def crear_organizacion(request: CrearOrganizacionRequest):
     return await programa_service.crear_organizacion(request)
 
 
+@router.put("/superadmin/organizaciones/{id_organizacion}")
+async def actualizar_organizacion(id_organizacion: int, request: ActualizarOrganizacionRequest):
+    """
+    Actualiza una organización existente
+    """
+    return await programa_service.actualizar_organizacion(id_organizacion, request)
+
+
 @router.get("/superadmin/programas")
 async def listar_programas(id_organizacion: Optional[int] = Query(None)):
     """
@@ -64,3 +74,11 @@ async def crear_programa(request: CrearProgramaRequest):
     Crea un nuevo programa con código de 8 caracteres
     """
     return await programa_service.crear_programa(request)
+
+
+@router.put("/superadmin/programas/{id_programa}")
+async def actualizar_programa(id_programa: int, request: ActualizarProgramaRequest):
+    """
+    Actualiza un programa existente
+    """
+    return await programa_service.actualizar_programa(id_programa, request)

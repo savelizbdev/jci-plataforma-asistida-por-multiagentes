@@ -4,7 +4,13 @@ Servicio para gestión de Organizaciones y Programas
 from typing import List, Dict, Any, Optional
 from fastapi import HTTPException
 from app.services.supabase_client import get_supabase_client
-from app.models.programa import CrearOrganizacionRequest, CrearProgramaRequest, UnirseProgramaRequest
+from app.models.programa import (
+    CrearOrganizacionRequest,
+    ActualizarOrganizacionRequest,
+    CrearProgramaRequest,
+    ActualizarProgramaRequest,
+    UnirseProgramaRequest,
+)
 
 
 class ProgramaService:
@@ -100,6 +106,32 @@ class ProgramaService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error al crear organización: {str(e)}")
 
+    async def actualizar_organizacion(self, id_organizacion: int, request: ActualizarOrganizacionRequest) -> Dict[str, Any]:
+        """
+        Actualiza los datos de una organización existente
+        """
+        try:
+            nombre = request.nombre.strip()
+            if not nombre:
+                raise HTTPException(status_code=400, detail="El nombre de la organización es obligatorio")
+
+            response = self.supabase.table("organizacion")\
+                .update({
+                    "nombre": nombre,
+                    "descripcion": request.descripcion.strip() if request.descripcion else None
+                })\
+                .eq("id_organizacion", id_organizacion)\
+                .execute()
+
+            if not response.data:
+                raise HTTPException(status_code=404, detail="Organización no encontrada")
+
+            return response.data[0]
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error al actualizar organización: {str(e)}")
+
     async def listar_programas(self, id_organizacion: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Lista programas globales o por organización
@@ -137,6 +169,46 @@ class ProgramaService:
             return response.data
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Error al crear programa: {str(e)}")
+
+    async def actualizar_programa(self, id_programa: int, request: ActualizarProgramaRequest) -> Dict[str, Any]:
+        """
+        Actualiza los datos de un programa existente (incluyendo nombre, organización y código)
+        """
+        try:
+            clean_codigo = request.codigo.strip().upper()
+            if len(clean_codigo) != 8:
+                raise HTTPException(status_code=400, detail="El código debe tener exactamente 8 caracteres")
+
+            nombre = request.nombre.strip()
+            if not nombre:
+                raise HTTPException(status_code=400, detail="El nombre del programa es obligatorio")
+
+            # Verificar que ningún otro programa tenga ya este mismo código
+            dup_res = self.supabase.table("programa")\
+                .select("id_programa")\
+                .eq("codigo", clean_codigo)\
+                .neq("id_programa", id_programa)\
+                .execute()
+            if dup_res.data:
+                raise HTTPException(status_code=400, detail="Ese código de 8 caracteres ya está en uso por otro programa")
+
+            response = self.supabase.table("programa")\
+                .update({
+                    "id_organizacion": request.id_organizacion,
+                    "nombre": nombre,
+                    "codigo": clean_codigo
+                })\
+                .eq("id_programa", id_programa)\
+                .execute()
+
+            if not response.data:
+                raise HTTPException(status_code=404, detail="Programa no encontrado")
+
+            return response.data[0]
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error al actualizar programa: {str(e)}")
 
 
 programa_service = ProgramaService()

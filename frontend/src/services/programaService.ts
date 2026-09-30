@@ -43,6 +43,17 @@ export const programaService = {
     },
 
     /**
+     * Actualizar organización existente (Super Admin)
+     */
+    async actualizarOrganizacion(id_organizacion: number, nombre: string, descripcion?: string): Promise<OrganizacionItem> {
+        const { data } = await api.put<OrganizacionItem>(`/superadmin/organizaciones/${id_organizacion}`, {
+            nombre,
+            descripcion,
+        });
+        return data;
+    },
+
+    /**
      * Listar programas (Super Admin)
      */
     async listarProgramas(id_organizacion?: number): Promise<any[]> {
@@ -57,6 +68,18 @@ export const programaService = {
      */
     async crearPrograma(id_organizacion: number, nombre: string, codigo: string): Promise<any> {
         const { data } = await api.post('/superadmin/programas', {
+            id_organizacion,
+            nombre,
+            codigo: codigo.trim().toUpperCase(),
+        });
+        return data;
+    },
+
+    /**
+     * Actualizar programa existente (Super Admin)
+     */
+    async actualizarPrograma(id_programa: number, id_organizacion: number, nombre: string, codigo: string): Promise<any> {
+        const { data } = await api.put(`/superadmin/programas/${id_programa}`, {
             id_organizacion,
             nombre,
             codigo: codigo.trim().toUpperCase(),

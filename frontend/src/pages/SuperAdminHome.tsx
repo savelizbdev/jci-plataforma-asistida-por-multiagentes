@@ -17,9 +17,11 @@ export const SuperAdminHome = () => {
     const [programas, setProgramas] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Modals
+    // Modals (Create / Edit)
     const [showOrgModal, setShowOrgModal] = useState(false);
+    const [editingOrgId, setEditingOrgId] = useState<number | null>(null);
     const [showProgModal, setShowProgModal] = useState(false);
+    const [editingProgId, setEditingProgId] = useState<number | null>(null);
 
     // Form inputs
     const [orgNombre, setOrgNombre] = useState('');
@@ -63,7 +65,41 @@ export const SuperAdminHome = () => {
         setProgCodigo(code);
     };
 
-    const handleCrearOrganizacion = async (e: React.FormEvent) => {
+    const openNuevaOrgModal = () => {
+        setEditingOrgId(null);
+        setOrgNombre('');
+        setOrgDesc('');
+        setShowOrgModal(true);
+    };
+
+    const openEditarOrgModal = (org: OrganizacionItem) => {
+        setEditingOrgId(org.id_organizacion);
+        setOrgNombre(org.nombre);
+        setOrgDesc(org.descripcion || '');
+        setShowOrgModal(true);
+    };
+
+    const openNuevoProgModal = () => {
+        if (organizaciones.length === 0) {
+            toast.error('Primero debes registrar al menos una organización');
+            return;
+        }
+        setEditingProgId(null);
+        setProgOrgId(organizaciones[0].id_organizacion);
+        setProgNombre('');
+        generarCodigoAleatorio();
+        setShowProgModal(true);
+    };
+
+    const openEditarProgModal = (prog: any) => {
+        setEditingProgId(prog.id_programa);
+        setProgOrgId(prog.id_organizacion);
+        setProgNombre(prog.nombre);
+        setProgCodigo(prog.codigo);
+        setShowProgModal(true);
+    };
+
+    const handleSubmitOrganizacion = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!orgNombre.trim()) {
             toast.error('El nombre de la organización es obligatorio');
@@ -72,20 +108,26 @@ export const SuperAdminHome = () => {
 
         setSubmitting(true);
         try {
-            await programaService.crearOrganizacion(orgNombre, orgDesc);
-            toast.success('Organización creada con éxito');
+            if (editingOrgId !== null) {
+                await programaService.actualizarOrganizacion(editingOrgId, orgNombre, orgDesc);
+                toast.success('Organización actualizada con éxito');
+            } else {
+                await programaService.crearOrganizacion(orgNombre, orgDesc);
+                toast.success('Organización creada con éxito');
+            }
             setOrgNombre('');
             setOrgDesc('');
+            setEditingOrgId(null);
             setShowOrgModal(false);
             fetchData();
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al crear la organización');
+            toast.error(error.response?.data?.detail || 'Error al guardar la organización');
         } finally {
             setSubmitting(false);
         }
     };
 
-    const handleCrearPrograma = async (e: React.FormEvent) => {
+    const handleSubmitPrograma = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!progOrgId || !progNombre.trim() || progCodigo.trim().length !== 8) {
             toast.error('Completa todos los campos y asegúrate de que el código tenga 8 caracteres');
@@ -94,14 +136,20 @@ export const SuperAdminHome = () => {
 
         setSubmitting(true);
         try {
-            await programaService.crearPrograma(Number(progOrgId), progNombre, progCodigo);
-            toast.success('Programa creado con éxito');
+            if (editingProgId !== null) {
+                await programaService.actualizarPrograma(editingProgId, Number(progOrgId), progNombre, progCodigo);
+                toast.success('Programa actualizado con éxito');
+            } else {
+                await programaService.crearPrograma(Number(progOrgId), progNombre, progCodigo);
+                toast.success('Programa creado con éxito');
+            }
             setProgNombre('');
             setProgCodigo('');
+            setEditingProgId(null);
             setShowProgModal(false);
             fetchData();
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al crear el programa');
+            toast.error(error.response?.data?.detail || 'Error al guardar el programa');
         } finally {
             setSubmitting(false);
         }
@@ -125,13 +173,13 @@ export const SuperAdminHome = () => {
                             Organizaciones y Programas
                         </h1>
                         <p className="text-neutral-500 text-sm font-medium tracking-wide mt-1">
-                            Crea y administra las organizaciones y programas con sus códigos de acceso alfanuméricos.
+                            Crea, edita y administra las organizaciones y programas con sus códigos de acceso alfanuméricos.
                         </p>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-3">
                         <button
-                            onClick={() => setShowOrgModal(true)}
+                            onClick={openNuevaOrgModal}
                             className="px-4 py-2.5 bg-white hover:bg-slate-50 text-neutral-700 font-semibold rounded-xl border border-slate-200 text-sm transition-all shadow-sm hover:border-slate-300 flex items-center gap-2"
                         >
                             <svg className="w-4 h-4 text-jci-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -141,14 +189,7 @@ export const SuperAdminHome = () => {
                         </button>
 
                         <button
-                            onClick={() => {
-                                if (organizaciones.length === 0) {
-                                    toast.error('Primero debes registrar al menos una organización');
-                                    return;
-                                }
-                                generarCodigoAleatorio();
-                                setShowProgModal(true);
-                            }}
+                            onClick={openNuevoProgModal}
                             className="px-4 py-2.5 bg-jci-blue hover:bg-primary-600 text-white font-semibold rounded-xl text-sm shadow-sm hover:shadow transition-all flex items-center gap-2"
                         >
                             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -193,8 +234,8 @@ export const SuperAdminHome = () => {
                                         >
                                             <div className="absolute top-0 left-0 w-1 h-full bg-jci-blue opacity-80"></div>
                                             <div className="flex items-start justify-between gap-3 pl-2">
-                                                <div>
-                                                    <h3 className="font-bold text-neutral-800 group-hover:text-jci-blue transition-colors">
+                                                <div className="min-w-0 flex-1">
+                                                    <h3 className="font-bold text-neutral-800 group-hover:text-jci-blue transition-colors truncate">
                                                         {org.nombre}
                                                     </h3>
                                                     {org.descripcion && (
@@ -203,9 +244,21 @@ export const SuperAdminHome = () => {
                                                         </p>
                                                     )}
                                                 </div>
-                                                <span className="text-[11px] font-bold bg-primary-50 text-jci-blue border border-primary-100 px-2.5 py-1 rounded-full whitespace-nowrap">
-                                                    {progsCount} {progsCount === 1 ? 'programa' : 'programas'}
-                                                </span>
+                                                <div className="flex items-center gap-2 shrink-0">
+                                                    <span className="text-[11px] font-bold bg-primary-50 text-jci-blue border border-primary-100 px-2.5 py-1 rounded-full whitespace-nowrap">
+                                                        {progsCount} {progsCount === 1 ? 'programa' : 'programas'}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditarOrgModal(org)}
+                                                        title="Editar organización"
+                                                        className="p-1.5 rounded-lg text-neutral-400 hover:text-jci-blue hover:bg-primary-50 border border-transparent hover:border-primary-100 transition-colors"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
                                     );
@@ -245,6 +298,7 @@ export const SuperAdminHome = () => {
                                             <th className="py-3.5 px-5">Organización</th>
                                             <th className="py-3.5 px-5 text-center">Código de Acceso</th>
                                             <th className="py-3.5 px-5 text-right">Creado</th>
+                                            <th className="py-3.5 px-5 text-right">Acciones</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 text-sm">
@@ -255,7 +309,9 @@ export const SuperAdminHome = () => {
                                                 </td>
                                                 <td className="py-4 px-5 text-neutral-600 text-xs">
                                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-md bg-slate-100 font-medium">
-                                                        {prog.organizacion?.nombre || 'Organización'}
+                                                        {prog.organizacion?.nombre ||
+                                                            organizaciones.find((o) => o.id_organizacion === prog.id_organizacion)?.nombre ||
+                                                            'Organización'}
                                                     </span>
                                                 </td>
                                                 <td className="py-4 px-5 text-center">
@@ -277,6 +333,18 @@ export const SuperAdminHome = () => {
                                                 <td className="py-4 px-5 text-right text-xs text-neutral-400 font-medium">
                                                     {prog.created_at ? new Date(prog.created_at).toLocaleDateString('es-ES') : '-'}
                                                 </td>
+                                                <td className="py-4 px-5 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditarProgModal(prog)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-jci-blue bg-primary-50 hover:bg-primary-100 border border-primary-100 rounded-lg transition-colors"
+                                                    >
+                                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                        <span>Editar</span>
+                                                    </button>
+                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -287,12 +355,14 @@ export const SuperAdminHome = () => {
                 </div>
             </div>
 
-            {/* Modal Crear Organización */}
+            {/* Modal Crear / Editar Organización */}
             {showOrgModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
                     <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 relative">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-neutral-800">Nueva Organización</h3>
+                            <h3 className="text-xl font-bold text-neutral-800">
+                                {editingOrgId !== null ? 'Editar Organización' : 'Nueva Organización'}
+                            </h3>
                             <button
                                 onClick={() => setShowOrgModal(false)}
                                 className="text-neutral-400 hover:text-neutral-600 p-1"
@@ -302,7 +372,7 @@ export const SuperAdminHome = () => {
                                 </svg>
                             </button>
                         </div>
-                        <form onSubmit={handleCrearOrganizacion} className="space-y-4">
+                        <form onSubmit={handleSubmitOrganizacion} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-neutral-600 uppercase tracking-wide mb-1.5">Nombre</label>
                                 <input
@@ -337,7 +407,11 @@ export const SuperAdminHome = () => {
                                     disabled={submitting}
                                     className="px-5 py-2.5 bg-jci-blue hover:bg-primary-600 text-white rounded-xl text-sm font-bold shadow-sm transition-all disabled:opacity-50"
                                 >
-                                    {submitting ? 'Guardando...' : 'Crear Organización'}
+                                    {submitting
+                                        ? 'Guardando...'
+                                        : editingOrgId !== null
+                                            ? 'Guardar Cambios'
+                                            : 'Crear Organización'}
                                 </button>
                             </div>
                         </form>
@@ -345,12 +419,14 @@ export const SuperAdminHome = () => {
                 </div>
             )}
 
-            {/* Modal Crear Programa */}
+            {/* Modal Crear / Editar Programa */}
             {showProgModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
                     <div className="bg-white rounded-2xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 relative">
                         <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-xl font-bold text-neutral-800">Nuevo Programa</h3>
+                            <h3 className="text-xl font-bold text-neutral-800">
+                                {editingProgId !== null ? 'Editar Programa' : 'Nuevo Programa'}
+                            </h3>
                             <button
                                 onClick={() => setShowProgModal(false)}
                                 className="text-neutral-400 hover:text-neutral-600 p-1"
@@ -360,7 +436,7 @@ export const SuperAdminHome = () => {
                                 </svg>
                             </button>
                         </div>
-                        <form onSubmit={handleCrearPrograma} className="space-y-4">
+                        <form onSubmit={handleSubmitPrograma} className="space-y-4">
                             <div>
                                 <label className="block text-xs font-bold text-neutral-600 uppercase tracking-wide mb-1.5">Organización</label>
                                 <select
@@ -421,7 +497,11 @@ export const SuperAdminHome = () => {
                                     disabled={submitting}
                                     className="px-5 py-2.5 bg-jci-blue hover:bg-primary-600 text-white rounded-xl text-sm font-bold shadow-sm transition-all disabled:opacity-50"
                                 >
-                                    {submitting ? 'Guardando...' : 'Crear Programa'}
+                                    {submitting
+                                        ? 'Guardando...'
+                                        : editingProgId !== null
+                                            ? 'Guardar Cambios'
+                                            : 'Crear Programa'}
                                 </button>
                             </div>
                         </form>
