@@ -51,212 +51,224 @@ class ReporteService:
     
     async def get_reporte_data(self, request: ReporteRequest) -> ReporteData:
         """
-        Obtiene todos los datos necesarios para generar el reporte
+        Obtiene todos los datos necesarios para generar el reporte de Mentor
+        filtrado por programa y asignación (Spec 003).
         """
         try:
+            nombre_programa = "Consolidado - Todos los usuarios asignados"
+            if request.id_programa:
+                try:
+                    p_res = self.supabase.table("programa").select("nombre").eq("id_programa", request.id_programa).execute()
+                    if isinstance(p_res.data, list) and len(p_res.data) > 0 and isinstance(p_res.data[0], dict) and p_res.data[0].get("nombre"):
+                        nombre_programa = str(p_res.data[0]["nombre"])
+                    else:
+                        nombre_programa = f"Programa {request.id_programa}"
+                except Exception:
+                    nombre_programa = f"Programa {request.id_programa}"
+
             # 1. Obtener información del mentor
             mentor_response = self.supabase.table("usuario") \
                 .select("nombre, apellido") \
                 .eq("id_usuario", request.id_mentor) \
                 .execute()
             
-            if not mentor_response.data or len(mentor_response.data) == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Mentor no encontrado"
-                )
+            mentor = mentor_response.data[0] if (mentor_response.data and len(mentor_response.data) > 0) else {"nombre": "Mentor", "apellido": ""}
             
-            mentor = mentor_response.data[0]
-            
-            # 2. Obtener emprendedores asignados
+            # 2. Obtener emprendedores asignados al mentor
             asignaciones_response = self.supabase.table("asignacion_mentor") \
                 .select("id_emprendedor") \
                 .eq("id_mentor", request.id_mentor) \
                 .execute()
             
-            if not asignaciones_response.data or len(asignaciones_response.data) == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No hay emprendedores asignados a este mentor"
-                )
-            
-            emprendedor_ids = [asig["id_emprendedor"] for asig in asignaciones_response.data]
-
-            # Filtrar emprendedores que estén enrolados en los programas del mentor
-            mentor_progs_res = self.supabase.table("usuario_programa") \
-                .select("id_programa") \
-                .eq("id_usuario", request.id_mentor) \
-                .execute()
-            mentor_prog_ids = [p["id_programa"] for p in (mentor_progs_res.data or [])]
-            if not mentor_prog_ids:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No hay emprendedores enrolados en tus programas"
+            asig_ids = [asig["id_emprendedor"] for asig in (asignaciones_response.data or [])]
+            if not asig_ids:
+                return ReporteData(
+                    mentor_nombre=mentor.get("nombre", "Mentor"),
+                    mentor_apellido=mentor.get("apellido", ""),
+                    fecha_inicio=request.fecha_inicio,
+                    fecha_fin=request.fecha_fin,
+                    nombre_programa=nombre_programa,
+                    emprendedores=[],
+                    estadisticas=EstadisticasGlobales(
+                        total_emprendedores=0, tasa_aprobado=0.0, promedio_cf=0.0,
+                        promedio_gp=0.0, promedio_m=0.0, promedio_v=0.0,
+                        promedio_tp=0.0, promedio_rh=0.0, promedio_ec=0.0, promedio_general=0.0
+                    ),
+                    diagnosticos_timeline=[]
                 )
 
-            up_res = self.supabase.table("usuario_programa") \
-                .select("id_usuario") \
-                .in_("id_programa", mentor_prog_ids) \
-                .in_("id_usuario", emprendedor_ids) \
-                .execute()
+            # 3. Filtrar emprendedores que compartan programa con el mentor
+            if request.id_programa:
+                up_res = self.supabase.table("usuario_programa") \
+                    .select("id_usuario") \
+                    .eq("id_programa", request.id_programa) \
+                    .in_("id_usuario", asig_ids) \
+                    .execute()
+            else:
+                mentor_progs_res = self.supabase.table("usuario_programa") \
+                    .select("id_programa") \
+                    .eq("id_usuario", request.id_mentor) \
+                    .execute()
+                mentor_prog_ids = [p["id_programa"] for p in (mentor_progs_res.data or [])]
+                if not mentor_prog_ids:
+                    up_res = type("MockObj", (), {"data": []})()
+                else:
+                    up_res = self.supabase.table("usuario_programa") \
+                        .select("id_usuario") \
+                        .in_("id_programa", mentor_prog_ids) \
+                        .in_("id_usuario", asig_ids) \
+                        .execute()
+
             emprendedor_ids = list({u["id_usuario"] for u in (up_res.data or [])})
             if not emprendedor_ids:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No hay emprendedores asignados enrolados en tus programas"
+                return ReporteData(
+                    mentor_nombre=mentor.get("nombre", "Mentor"),
+                    mentor_apellido=mentor.get("apellido", ""),
+                    fecha_inicio=request.fecha_inicio,
+                    fecha_fin=request.fecha_fin,
+                    nombre_programa=nombre_programa,
+                    emprendedores=[],
+                    estadisticas=EstadisticasGlobales(
+                        total_emprendedores=0, tasa_aprobado=0.0, promedio_cf=0.0,
+                        promedio_gp=0.0, promedio_m=0.0, promedio_v=0.0,
+                        promedio_tp=0.0, promedio_rh=0.0, promedio_ec=0.0, promedio_general=0.0
+                    ),
+                    diagnosticos_timeline=[]
                 )
-            
-            # 3. Obtener diagnósticos en el rango de fechas
+
+            # 4. Obtener información de usuarios (emprendedores) y emprendimientos
+            usuarios_response = self.supabase.table("usuario") \
+                .select("id_usuario, nombre, apellido") \
+                .in_("id_usuario", emprendedor_ids) \
+                .execute()
+            usuarios_dict = {u.get("id_usuario"): u for u in (usuarios_response.data or []) if u.get("id_usuario")}
+
+            emp_response = self.supabase.table("emprendimiento") \
+                .select("id_usuario, nombre") \
+                .in_("id_usuario", emprendedor_ids) \
+                .execute()
+            emprendimientos_dict = {e["id_usuario"]: e["nombre"] for e in (emp_response.data or [])}
+
+            # 5. Obtener diagnósticos en el rango de fechas
             diagnosticos_response = self.supabase.table("diagnostico") \
                 .select("*") \
                 .in_("id_usuario", emprendedor_ids) \
                 .gte("fecha_inicio", request.fecha_inicio.isoformat()) \
                 .lte("fecha_inicio", request.fecha_fin.isoformat()) \
                 .execute()
-            
-            if not diagnosticos_response.data or len(diagnosticos_response.data) == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No hay diagnósticos en el rango de fechas especificado"
-                )
-            
-            diagnosticos = diagnosticos_response.data
-            
-            # 4. Obtener detalles de diagnósticos
-            diag_ids = [d["id_diagnostico"] for d in diagnosticos]
-            detalles_response = self.supabase.table("detalle_diagnostico") \
-                .select("*") \
-                .in_("id_diagnostico", diag_ids) \
-                .execute()
-            
-            detalles = detalles_response.data if detalles_response.data else []
-            
-            # 5. Obtener información de usuarios (emprendedores)
-            usuarios_response = self.supabase.table("usuario") \
-                .select("id_usuario, nombre, apellido") \
-                .in_("id_usuario", emprendedor_ids) \
-                .execute()
-            
-            usuarios_dict = {u["id_usuario"]: u for u in usuarios_response.data}
-            
-            # 6. Obtener emprendimientos
-            emprendimientos_response = self.supabase.table("emprendimiento") \
-                .select("id_usuario, nombre") \
-                .in_("id_usuario", emprendedor_ids) \
-                .execute()
-            
-            emprendimientos_dict = {e["id_usuario"]: e["nombre"] 
-                                   for e in emprendimientos_response.data} if emprendimientos_response.data else {}
-            
-            # 7. Calcular estadísticas por emprendedor
+            diagnosticos = diagnosticos_response.data or []
+
+            # 6. Construir lista de emprendedores respetando diagnóstico más reciente y Sin diagnóstico
             emprendedores = []
             diag_timeline = []
-            
+
             for emp_id in emprendedor_ids:
-                emp_diagnosticos = [d for d in diagnosticos if d["id_usuario"] == emp_id]
-                
-                if len(emp_diagnosticos) == 0:
-                    continue
-                
-                # Promedios por área
-                areas_sum = {"cf": 0, "gp": 0, "m": 0, "v": 0, "tp": 0, "rh": 0, "ec": 0}
-                total_diags = len(emp_diagnosticos)
-                
-                for diag in emp_diagnosticos:
-                    # Agregar a timeline
-                    diag_timeline.append(DiagnosticoPorFecha(
-                        fecha=datetime.fromisoformat(diag["fecha_inicio"].replace('Z', '+00:00')),
-                        promedio=diag["puntaje_total"]
+                emp_diags = [d for d in diagnosticos if d.get("id_usuario") == emp_id]
+                u_info = usuarios_dict.get(emp_id, {})
+                e_nombre = emprendimientos_dict.get(emp_id, "N/A")
+
+                if not emp_diags:
+                    emprendedores.append(EmprendedorReporte(
+                        nombre=u_info.get("nombre", "N/A"),
+                        apellido=u_info.get("apellido", "N/A"),
+                        emprendimiento=e_nombre,
+                        promedio_general=None,
+                        promedio_cf=None, promedio_gp=None, promedio_m=None,
+                        promedio_v=None, promedio_tp=None, promedio_rh=None, promedio_ec=None,
+                        num_diagnosticos=0,
+                        estado_diagnostico="Sin diagnóstico"
                     ))
-                    
-                    # Sumar puntajes
-                    areas_sum["cf"] += diag.get("puntaje_cf", 0)
-                    areas_sum["gp"] += diag.get("puntaje_gp", 0)
-                    areas_sum["m"] += diag.get("puntaje_m", 0)
-                    areas_sum["v"] += diag.get("puntaje_v", 0)
-                    areas_sum["tp"] += diag.get("puntaje_tp", 0)
-                    areas_sum["rh"] += diag.get("puntaje_rh", 0)
-                    areas_sum["ec"] += diag.get("puntaje_ec", 0)
-                
-                usuario = usuarios_dict.get(emp_id, {})
-                emprendimiento = emprendimientos_dict.get(emp_id, "N/A")
-                
-                promedio_general = sum([
-                    areas_sum["cf"], areas_sum["gp"], areas_sum["m"],
-                    areas_sum["v"], areas_sum["tp"], areas_sum["rh"], areas_sum["ec"]
-                ]) / (total_diags * 7) if total_diags > 0 else 0
-                
-                emprendedores.append(EmprendedorReporte(
-                    nombre=usuario.get("nombre", "N/A"),
-                    apellido=usuario.get("apellido", "N/A"),
-                    emprendimiento=emprendimiento,
-                    promedio_general=round(promedio_general, 1),
-                    promedio_cf=round(areas_sum["cf"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_gp=round(areas_sum["gp"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_m=round(areas_sum["m"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_v=round(areas_sum["v"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_tp=round(areas_sum["tp"] / total_diags, 1) if total_diags > 0 else 0,
-                   promedio_rh=round(areas_sum["rh"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_ec=round(areas_sum["ec"] / total_diags, 1) if total_diags > 0 else 0,
-                    num_diagnosticos=total_diags
-                ))
-            
-            # 8. Calcular estadísticas globales
-            total_emprendedores = len(emprendedores)
-            
-            # Obtener el último diagnóstico válido por emprendedor
-            latest_map = {}
-            for d in diagnosticos:
-                uid = d.get("id_usuario")
-                if not uid or d.get("resultado") not in ("ACEPTADO", "APROBADO", "EXIMIDO", "RECHAZADO", "OBSERVADO"):
                     continue
-                if uid not in latest_map:
-                    latest_map[uid] = d
-                else:
-                    fecha_curr = d.get("fecha_inicio")
-                    fecha_prev = latest_map[uid].get("fecha_inicio")
-                    if fecha_curr and fecha_prev and str(fecha_curr) > str(fecha_prev):
-                        latest_map[uid] = d
-            
-            diagnosticos_valido = list(latest_map.values())
-            diagnosticos_aceptados = len([d for d in diagnosticos_valido if d.get("resultado") in ("ACEPTADO", "APROBADO", "EXIMIDO")])
-            tasa_aprobado = (diagnosticos_aceptados / len(diagnosticos_valido) * 100) if len(diagnosticos_valido) > 0 else 0
-            
-            global_cf = sum(e.promedio_cf for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_gp = sum(e.promedio_gp for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_m = sum(e.promedio_m for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_v = sum(e.promedio_v for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_tp = sum(e.promedio_tp for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_rh = sum(e.promedio_rh for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_ec = sum(e.promedio_ec for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_promedio = (global_cf + global_gp + global_m + global_v + global_tp + global_rh + global_ec) / 7
-            
-            estadisticas = EstadisticasGlobales(
-                total_emprendedores=total_emprendedores,
-                tasa_aprobado=round(tasa_aprobado, 1),
-                promedio_cf=round(global_cf, 1),
-                promedio_gp=round(global_gp, 1),
-                promedio_m=round(global_m, 1),
-                promedio_v=round(global_v, 1),
-                promedio_tp=round(global_tp, 1),
-                promedio_rh=round(global_rh, 1),
-                promedio_ec=round(global_ec, 1),
-                promedio_general=round(global_promedio, 1)
-            )
-            
-            # Ordenar timeline por fecha
+
+                # RF-04.1: Seleccionar diagnóstico más reciente
+                latest_d = sorted(emp_diags, key=lambda x: str(x.get("fecha_inicio") or ""), reverse=True)[0]
+                cf = float(latest_d.get("puntaje_cf") or 0)
+                gp = float(latest_d.get("puntaje_gp") or 0)
+                m = float(latest_d.get("puntaje_m") or 0)
+                v = float(latest_d.get("puntaje_v") or 0)
+                tp = float(latest_d.get("puntaje_tp") or 0)
+                rh = float(latest_d.get("puntaje_rh") or 0)
+                ec = float(latest_d.get("puntaje_ec") or 0)
+                prom_gen = latest_d.get("puntaje_total")
+                if prom_gen is None:
+                    prom_gen = (cf + gp + m + v + tp + rh + ec) / 7.0
+
+                for d in emp_diags:
+                    if d.get("fecha_inicio") and d.get("puntaje_total") is not None:
+                        try:
+                            diag_timeline.append(DiagnosticoPorFecha(
+                                fecha=datetime.fromisoformat(d["fecha_inicio"].replace('Z', '+00:00')),
+                                promedio=float(d["puntaje_total"])
+                            ))
+                        except Exception:
+                            pass
+
+                emprendedores.append(EmprendedorReporte(
+                    nombre=u_info.get("nombre", "N/A"),
+                    apellido=u_info.get("apellido", "N/A"),
+                    emprendimiento=e_nombre,
+                    promedio_general=round(float(prom_gen), 1),
+                    promedio_cf=round(cf, 1),
+                    promedio_gp=round(gp, 1),
+                    promedio_m=round(m, 1),
+                    promedio_v=round(v, 1),
+                    promedio_tp=round(tp, 1),
+                    promedio_rh=round(rh, 1),
+                    promedio_ec=round(ec, 1),
+                    num_diagnosticos=len(emp_diags),
+                    estado_diagnostico="Con diagnóstico"
+                ))
+
+            # 7. Estadísticas globales (RF-04.3: solo evaluados)
+            evaluados = [e for e in emprendedores if e.estado_diagnostico == "Con diagnóstico"]
+            n_eval = len(evaluados)
+            if n_eval > 0:
+                g_cf = sum(e.promedio_cf or 0 for e in evaluados) / n_eval
+                g_gp = sum(e.promedio_gp or 0 for e in evaluados) / n_eval
+                g_m = sum(e.promedio_m or 0 for e in evaluados) / n_eval
+                g_v = sum(e.promedio_v or 0 for e in evaluados) / n_eval
+                g_tp = sum(e.promedio_tp or 0 for e in evaluados) / n_eval
+                g_rh = sum(e.promedio_rh or 0 for e in evaluados) / n_eval
+                g_ec = sum(e.promedio_ec or 0 for e in evaluados) / n_eval
+                g_prom = sum(e.promedio_general or 0 for e in evaluados) / n_eval
+
+                aprobados = len([d for d in diagnosticos if d.get("resultado") in ("ACEPTADO", "APROBADO", "EXIMIDO")])
+                tasa = round(aprobados / len(diagnosticos) * 100, 1) if diagnosticos else 0.0
+
+                estadisticas = EstadisticasGlobales(
+                    total_emprendedores=len(emprendedores),
+                    tasa_aprobado=tasa,
+                    promedio_cf=round(g_cf, 1),
+                    promedio_gp=round(g_gp, 1),
+                    promedio_m=round(g_m, 1),
+                    promedio_v=round(g_v, 1),
+                    promedio_tp=round(g_tp, 1),
+                    promedio_rh=round(g_rh, 1),
+                    promedio_ec=round(g_ec, 1),
+                    promedio_general=round(g_prom, 1)
+                )
+            else:
+                estadisticas = EstadisticasGlobales(
+                    total_emprendedores=len(emprendedores),
+                    tasa_aprobado=0.0,
+                    promedio_cf=0.0, promedio_gp=0.0, promedio_m=0.0,
+                    promedio_v=0.0, promedio_tp=0.0, promedio_rh=0.0, promedio_ec=0.0,
+                    promedio_general=0.0
+                )
+
             diag_timeline_sorted = sorted(diag_timeline, key=lambda x: x.fecha)
-            
+
             return ReporteData(
-                mentor_nombre=mentor["nombre"],
-                mentor_apellido=mentor["apellido"],
+                mentor_nombre=mentor.get("nombre", "Mentor"),
+                mentor_apellido=mentor.get("apellido", ""),
                 fecha_inicio=request.fecha_inicio,
                 fecha_fin=request.fecha_fin,
+                nombre_programa=nombre_programa,
                 emprendedores=emprendedores,
                 estadisticas=estadisticas,
                 diagnosticos_timeline=diag_timeline_sorted
             )
-            
+
         except HTTPException:
             raise
         except Exception as e:
@@ -265,175 +277,301 @@ class ReporteService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al generar reporte: {str(e)}"
             )
-    
+
     async def get_reporte_data_admin(self, request: ReporteAdminRequest) -> ReporteData:
         """
-        Obtiene todos los datos para generar reporte de administrador (todos los emprendedores de su organización)
+        Obtiene todos los datos para generar reporte de administrador con filtro de programa
+        o consolidado general con duplicación por programa (Spec 003).
         """
         try:
             from app.services.org_filter import get_admin_org_user_ids
 
-            # 1. Obtener emprendedores (rol 2), filtrados por la organización del admin si aplica
-            emp_query = self.supabase.table("usuario") \
-                .select("id_usuario") \
-                .eq("id_rol", 2)
-            
+            nombre_programa = "Consolidado - Todos los programas"
+            if request.id_programa:
+                try:
+                    p_res = self.supabase.table("programa").select("nombre").eq("id_programa", request.id_programa).execute()
+                    if isinstance(p_res.data, list) and len(p_res.data) > 0 and isinstance(p_res.data[0], dict) and p_res.data[0].get("nombre"):
+                        nombre_programa = str(p_res.data[0]["nombre"])
+                    else:
+                        nombre_programa = f"Programa {request.id_programa}"
+                except Exception:
+                    nombre_programa = f"Programa {request.id_programa}"
+
+            org_users = None
             if request.admin_id:
                 org_users = get_admin_org_user_ids(request.admin_id, self.supabase)
-                if org_users is not None:
-                    if len(org_users) == 0:
-                        emp_query = emp_query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
-                    else:
-                        emp_query = emp_query.in_("id_usuario", org_users)
 
-            roles_response = emp_query.execute()
-            
-            if not roles_response.data or len(roles_response.data) == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No hay emprendedores registrados en la organización"
-                )
-            
-            emprendedor_ids = [r["id_usuario"] for r in roles_response.data]
-            
-            # 2. Obtener diagnósticos en el rango de fechas
-            diagnosticos_response = self.supabase.table("diagnostico") \
-                .select("*") \
-                .in_("id_usuario", emprendedor_ids) \
-                .gte("fecha_inicio", request.fecha_inicio.isoformat()) \
-                .lte("fecha_inicio", request.fecha_fin.isoformat()) \
-                .execute()
-            
-            if not diagnosticos_response.data or len(diagnosticos_response.data) == 0:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No hay diagnósticos en el rango de fechas especificado"
-                )
-            
-            diagnosticos = diagnosticos_response.data
-            
-            # 3. Obtener información de usuarios
-            usuarios_response = self.supabase.table("usuario") \
-                .select("id_usuario, nombre, apellido") \
-                .in_("id_usuario", emprendedor_ids) \
-                .execute()
-            
-            usuarios_dict = {u["id_usuario"]: u for u in usuarios_response.data}
-            
-            # 4. Obtener emprendimientos
-            emprendimientos_response = self.supabase.table("emprendimiento") \
-                .select("id_usuario, nombre") \
-                .in_("id_usuario", emprendedor_ids) \
-                .execute()
-            
-            emprendimientos_dict = {e["id_usuario"]: e["nombre"] 
-                                   for e in emprendimientos_response.data} if emprendimientos_response.data else {}
-            
-            # 5. Calcular estadísticas por emprendedor
             emprendedores = []
             diag_timeline = []
-            
-            for emp_id in emprendedor_ids:
-                emp_diagnosticos = [d for d in diagnosticos if d["id_usuario"] == emp_id]
-                
-                if len(emp_diagnosticos) == 0:
-                    continue
-                
-                areas_sum = {"cf": 0, "gp": 0, "m": 0, "v": 0, "tp": 0, "rh": 0, "ec": 0}
-                total_diags = len(emp_diagnosticos)
-                
-                for diag in emp_diagnosticos:
-                    diag_timeline.append(DiagnosticoPorFecha(
-                        fecha=datetime.fromisoformat(diag["fecha_inicio"].replace('Z', '+00:00')),
-                        promedio=diag["puntaje_total"]
+
+            if request.id_programa:
+                # Filtrar emprendedores por programa específico
+                up_query = self.supabase.table("usuario_programa") \
+                    .select("id_usuario") \
+                    .eq("id_programa", request.id_programa)
+                if org_users is not None:
+                    if len(org_users) == 0:
+                        up_query = up_query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+                    else:
+                        up_query = up_query.in_("id_usuario", org_users)
+                up_resp = up_query.execute()
+                emp_ids = list({u["id_usuario"] for u in (up_resp.data or [])})
+
+                if not emp_ids:
+                    return ReporteData(
+                        mentor_nombre="Administrador",
+                        mentor_apellido="General",
+                        fecha_inicio=request.fecha_inicio,
+                        fecha_fin=request.fecha_fin,
+                        nombre_programa=nombre_programa,
+                        emprendedores=[],
+                        estadisticas=EstadisticasGlobales(
+                            total_emprendedores=0, tasa_aprobado=0.0, promedio_cf=0.0,
+                            promedio_gp=0.0, promedio_m=0.0, promedio_v=0.0,
+                            promedio_tp=0.0, promedio_rh=0.0, promedio_ec=0.0, promedio_general=0.0
+                        ),
+                        diagnosticos_timeline=[]
+                    )
+
+                u_resp = self.supabase.table("usuario") \
+                    .select("id_usuario, nombre, apellido") \
+                    .in_("id_usuario", emp_ids) \
+                    .eq("id_rol", 2) \
+                    .execute()
+                u_data = u_resp.data or []
+                emp_ids = [u.get("id_usuario") for u in u_data if u.get("id_usuario")]
+                u_dict = {u.get("id_usuario"): u for u in u_data if u.get("id_usuario")}
+
+                if not emp_ids:
+                    return ReporteData(
+                        mentor_nombre="Administrador",
+                        mentor_apellido="General",
+                        fecha_inicio=request.fecha_inicio,
+                        fecha_fin=request.fecha_fin,
+                        nombre_programa=nombre_programa,
+                        emprendedores=[],
+                        estadisticas=EstadisticasGlobales(
+                            total_emprendedores=0, tasa_aprobado=0.0, promedio_cf=0.0,
+                            promedio_gp=0.0, promedio_m=0.0, promedio_v=0.0,
+                            promedio_tp=0.0, promedio_rh=0.0, promedio_ec=0.0, promedio_general=0.0
+                        ),
+                        diagnosticos_timeline=[]
+                    )
+
+                emp_resp = self.supabase.table("emprendimiento").select("id_usuario, nombre").in_("id_usuario", emp_ids).execute()
+                emp_dict = {e["id_usuario"]: e["nombre"] for e in (emp_resp.data or [])}
+
+                diag_resp = self.supabase.table("diagnostico") \
+                    .select("*") \
+                    .in_("id_usuario", emp_ids) \
+                    .gte("fecha_inicio", request.fecha_inicio.isoformat()) \
+                    .lte("fecha_inicio", request.fecha_fin.isoformat()) \
+                    .execute()
+                diagnosticos = diag_resp.data or []
+
+                for eid in emp_ids:
+                    diags_emp = [d for d in diagnosticos if d.get("id_usuario") == eid]
+                    u = u_dict.get(eid, {})
+                    e_nom = emp_dict.get(eid, "N/A")
+
+                    if not diags_emp:
+                        emprendedores.append(EmprendedorReporte(
+                            nombre=u.get("nombre", "N/A"),
+                            apellido=u.get("apellido", "N/A"),
+                            emprendimiento=e_nom,
+                            promedio_general=None,
+                            promedio_cf=None, promedio_gp=None, promedio_m=None,
+                            promedio_v=None, promedio_tp=None, promedio_rh=None, promedio_ec=None,
+                            num_diagnosticos=0,
+                            estado_diagnostico="Sin diagnóstico"
+                        ))
+                        continue
+
+                    latest_d = sorted(diags_emp, key=lambda x: str(x.get("fecha_inicio") or ""), reverse=True)[0]
+                    cf = float(latest_d.get("puntaje_cf") or 0)
+                    gp = float(latest_d.get("puntaje_gp") or 0)
+                    m = float(latest_d.get("puntaje_m") or 0)
+                    v = float(latest_d.get("puntaje_v") or 0)
+                    tp = float(latest_d.get("puntaje_tp") or 0)
+                    rh = float(latest_d.get("puntaje_rh") or 0)
+                    ec = float(latest_d.get("puntaje_ec") or 0)
+                    prom_gen = latest_d.get("puntaje_total")
+                    if prom_gen is None:
+                        prom_gen = (cf + gp + m + v + tp + rh + ec) / 7.0
+
+                    for d in diags_emp:
+                        if d.get("fecha_inicio") and d.get("puntaje_total") is not None:
+                            try:
+                                diag_timeline.append(DiagnosticoPorFecha(
+                                    fecha=datetime.fromisoformat(d["fecha_inicio"].replace('Z', '+00:00')),
+                                    promedio=float(d["puntaje_total"])
+                                ))
+                            except Exception:
+                                pass
+
+                    emprendedores.append(EmprendedorReporte(
+                        nombre=u.get("nombre", "N/A"),
+                        apellido=u.get("apellido", "N/A"),
+                        emprendimiento=e_nom,
+                        promedio_general=round(float(prom_gen), 1),
+                        promedio_cf=round(cf, 1),
+                        promedio_gp=round(gp, 1),
+                        promedio_m=round(m, 1),
+                        promedio_v=round(v, 1),
+                        promedio_tp=round(tp, 1),
+                        promedio_rh=round(rh, 1),
+                        promedio_ec=round(ec, 1),
+                        num_diagnosticos=len(diags_emp),
+                        estado_diagnostico="Con diagnóstico"
                     ))
-                    
-                    areas_sum["cf"] += diag.get("puntaje_cf", 0)
-                    areas_sum["gp"] += diag.get("puntaje_gp", 0)
-                    areas_sum["m"] += diag.get("puntaje_m", 0)
-                    areas_sum["v"] += diag.get("puntaje_v", 0)
-                    areas_sum["tp"] += diag.get("puntaje_tp", 0)
-                    areas_sum["rh"] += diag.get("puntaje_rh", 0)
-                    areas_sum["ec"] += diag.get("puntaje_ec", 0)
-                
-                usuario = usuarios_dict.get(emp_id, {})
-                emprendimiento = emprendimientos_dict.get(emp_id, "N/A")
-                
-                promedio_general = sum([
-                    areas_sum["cf"], areas_sum["gp"], areas_sum["m"],
-                    areas_sum["v"], areas_sum["tp"], areas_sum["rh"], areas_sum["ec"]
-                ]) / (total_diags * 7) if total_diags > 0 else 0
-                
-                emprendedores.append(EmprendedorReporte(
-                    nombre=usuario.get("nombre", "N/A"),
-                    apellido=usuario.get("apellido", "N/A"),
-                    emprendimiento=emprendimiento,
-                    promedio_general=round(promedio_general, 1),
-                    promedio_cf=round(areas_sum["cf"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_gp=round(areas_sum["gp"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_m=round(areas_sum["m"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_v=round(areas_sum["v"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_tp=round(areas_sum["tp"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_rh=round(areas_sum["rh"] / total_diags, 1) if total_diags > 0 else 0,
-                    promedio_ec=round(areas_sum["ec"] / total_diags, 1) if total_diags > 0 else 0,
-                    num_diagnosticos=total_diags
-                ))
-            
-            # 6. Estadísticas globales
-            total_emprendedores = len(emprendedores)
-            
-            # Obtener el último diagnóstico válido por emprendedor
-            latest_map = {}
-            for d in diagnosticos:
-                uid = d.get("id_usuario")
-                if not uid or d.get("resultado") not in ("ACEPTADO", "APROBADO", "EXIMIDO", "RECHAZADO", "OBSERVADO"):
-                    continue
-                if uid not in latest_map:
-                    latest_map[uid] = d
-                else:
-                    fecha_curr = d.get("fecha_inicio")
-                    fecha_prev = latest_map[uid].get("fecha_inicio")
-                    if fecha_curr and fecha_prev and str(fecha_curr) > str(fecha_prev):
-                        latest_map[uid] = d
-            
-            diagnosticos_valido = list(latest_map.values())
-            diagnosticos_aceptados = len([d for d in diagnosticos_valido if d.get("resultado") in ("ACEPTADO", "APROBADO", "EXIMIDO")])
-            tasa_aprobado = (diagnosticos_aceptados / len(diagnosticos_valido) * 100) if len(diagnosticos_valido) > 0 else 0
-            
-            global_cf = sum(e.promedio_cf for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_gp = sum(e.promedio_gp for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_m = sum(e.promedio_m for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_v = sum(e.promedio_v for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_tp = sum(e.promedio_tp for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_rh = sum(e.promedio_rh for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_ec = sum(e.promedio_ec for e in emprendedores) / total_emprendedores if total_emprendedores > 0 else 0
-            global_promedio = (global_cf + global_gp + global_m + global_v + global_tp + global_rh + global_ec) / 7
-            
-            estadisticas = EstadisticasGlobales(
-                total_emprendedores=total_emprendedores,
-                tasa_aprobado=round(tasa_aprobado, 1),
-                promedio_cf=round(global_cf, 1),
-                promedio_gp=round(global_gp, 1),
-                promedio_m=round(global_m, 1),
-                promedio_v=round(global_v, 1),
-                promedio_tp=round(global_tp, 1),
-                promedio_rh=round(global_rh, 1),
-                promedio_ec=round(global_ec, 1),
-                promedio_general=round(global_promedio, 1)
-            )
-            
+
+            else:
+                # RF-03.3: Consolidado con duplicación por programa
+                up_query = self.supabase.table("usuario_programa") \
+                    .select("id_usuario, id_programa, programa(nombre)")
+                if org_users is not None:
+                    if len(org_users) == 0:
+                        up_query = up_query.in_("id_usuario", ["00000000-0000-0000-0000-000000000000"])
+                    else:
+                        up_query = up_query.in_("id_usuario", org_users)
+                up_resp = up_query.execute()
+                up_entries = up_resp.data or []
+
+                all_emp_ids = list({item["id_usuario"] for item in up_entries})
+
+                u_dict = {}
+                diagnosticos = []
+                if all_emp_ids:
+                    u_resp = self.supabase.table("usuario") \
+                        .select("id_usuario, nombre, apellido") \
+                        .in_("id_usuario", all_emp_ids) \
+                        .eq("id_rol", 2) \
+                        .execute()
+                    u_data = u_resp.data or []
+                    valid_emp_ids = {u.get("id_usuario") for u in u_data if u.get("id_usuario")}
+                    u_dict = {u.get("id_usuario"): u for u in u_data if u.get("id_usuario")}
+
+                    # Filtrar up_entries para conservar EXCLUSIVAMENTE a emprendedores (id_rol = 2)
+                    up_entries = [item for item in up_entries if item.get("id_usuario") in valid_emp_ids]
+                    all_emp_ids = list(valid_emp_ids)
+
+                    if all_emp_ids:
+                        diag_resp = self.supabase.table("diagnostico") \
+                            .select("*") \
+                            .in_("id_usuario", all_emp_ids) \
+                            .gte("fecha_inicio", request.fecha_inicio.isoformat()) \
+                            .lte("fecha_inicio", request.fecha_fin.isoformat()) \
+                            .execute()
+                        diagnosticos = diag_resp.data or []
+
+                for item in up_entries:
+                    eid = item["id_usuario"]
+                    prog_info = item.get("programa") or {}
+                    prog_nom = prog_info.get("nombre") if isinstance(prog_info, dict) else f"Programa {item.get('id_programa')}"
+                    u = u_dict.get(eid, {})
+
+                    diags_emp = [d for d in diagnosticos if d.get("id_usuario") == eid]
+                    if not diags_emp:
+                        emprendedores.append(EmprendedorReporte(
+                            nombre=u.get("nombre", "N/A"),
+                            apellido=u.get("apellido", "N/A"),
+                            emprendimiento=prog_nom,
+                            promedio_general=None,
+                            promedio_cf=None, promedio_gp=None, promedio_m=None,
+                            promedio_v=None, promedio_tp=None, promedio_rh=None, promedio_ec=None,
+                            num_diagnosticos=0,
+                            estado_diagnostico="Sin diagnóstico"
+                        ))
+                        continue
+
+                    latest_d = sorted(diags_emp, key=lambda x: str(x.get("fecha_inicio") or ""), reverse=True)[0]
+                    cf = float(latest_d.get("puntaje_cf") or 0)
+                    gp = float(latest_d.get("puntaje_gp") or 0)
+                    m = float(latest_d.get("puntaje_m") or 0)
+                    v = float(latest_d.get("puntaje_v") or 0)
+                    tp = float(latest_d.get("puntaje_tp") or 0)
+                    rh = float(latest_d.get("puntaje_rh") or 0)
+                    ec = float(latest_d.get("puntaje_ec") or 0)
+                    prom_gen = latest_d.get("puntaje_total")
+                    if prom_gen is None:
+                        prom_gen = (cf + gp + m + v + tp + rh + ec) / 7.0
+
+                    for d in diags_emp:
+                        if d.get("fecha_inicio") and d.get("puntaje_total") is not None:
+                            try:
+                                diag_timeline.append(DiagnosticoPorFecha(
+                                    fecha=datetime.fromisoformat(d["fecha_inicio"].replace('Z', '+00:00')),
+                                    promedio=float(d["puntaje_total"])
+                                ))
+                            except Exception:
+                                pass
+
+                    emprendedores.append(EmprendedorReporte(
+                        nombre=u.get("nombre", "N/A"),
+                        apellido=u.get("apellido", "N/A"),
+                        emprendimiento=prog_nom,
+                        promedio_general=round(float(prom_gen), 1),
+                        promedio_cf=round(cf, 1),
+                        promedio_gp=round(gp, 1),
+                        promedio_m=round(m, 1),
+                        promedio_v=round(v, 1),
+                        promedio_tp=round(tp, 1),
+                        promedio_rh=round(rh, 1),
+                        promedio_ec=round(ec, 1),
+                        num_diagnosticos=len(diags_emp),
+                        estado_diagnostico="Con diagnóstico"
+                    ))
+
+            # Estadísticas globales
+            evaluados = [e for e in emprendedores if e.estado_diagnostico == "Con diagnóstico"]
+            n_eval = len(evaluados)
+            if n_eval > 0:
+                g_cf = sum(e.promedio_cf or 0 for e in evaluados) / n_eval
+                g_gp = sum(e.promedio_gp or 0 for e in evaluados) / n_eval
+                g_m = sum(e.promedio_m or 0 for e in evaluados) / n_eval
+                g_v = sum(e.promedio_v or 0 for e in evaluados) / n_eval
+                g_tp = sum(e.promedio_tp or 0 for e in evaluados) / n_eval
+                g_rh = sum(e.promedio_rh or 0 for e in evaluados) / n_eval
+                g_ec = sum(e.promedio_ec or 0 for e in evaluados) / n_eval
+                g_prom = sum(e.promedio_general or 0 for e in evaluados) / n_eval
+
+                aprobados = len([d for d in diagnosticos if d.get("resultado") in ("ACEPTADO", "APROBADO", "EXIMIDO")])
+                tasa = round(aprobados / len(diagnosticos) * 100, 1) if diagnosticos else 0.0
+
+                estadisticas = EstadisticasGlobales(
+                    total_emprendedores=len(emprendedores),
+                    tasa_aprobado=tasa,
+                    promedio_cf=round(g_cf, 1),
+                    promedio_gp=round(g_gp, 1),
+                    promedio_m=round(g_m, 1),
+                    promedio_v=round(g_v, 1),
+                    promedio_tp=round(g_tp, 1),
+                    promedio_rh=round(g_rh, 1),
+                    promedio_ec=round(g_ec, 1),
+                    promedio_general=round(g_prom, 1)
+                )
+            else:
+                estadisticas = EstadisticasGlobales(
+                    total_emprendedores=len(emprendedores),
+                    tasa_aprobado=0.0,
+                    promedio_cf=0.0, promedio_gp=0.0, promedio_m=0.0,
+                    promedio_v=0.0, promedio_tp=0.0, promedio_rh=0.0, promedio_ec=0.0,
+                    promedio_general=0.0
+                )
+
             diag_timeline_sorted = sorted(diag_timeline, key=lambda x: x.fecha)
-            
+
             return ReporteData(
                 mentor_nombre="Administrador",
                 mentor_apellido="General",
                 fecha_inicio=request.fecha_inicio,
                 fecha_fin=request.fecha_fin,
+                nombre_programa=nombre_programa,
                 emprendedores=emprendedores,
                 estadisticas=estadisticas,
                 diagnosticos_timeline=diag_timeline_sorted
             )
-            
+
         except HTTPException:
             raise
         except Exception as e:
@@ -442,7 +580,7 @@ class ReporteService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al generar reporte: {str(e)}"
             )
-    
+
     # ── Colores institucionales (Activa Mujer / JCI) ─────────────
     TEAL        = colors.HexColor('#1E766F')   # activa-dark-teal → encabezados, tablas
     TEAL_LIGHT  = colors.HexColor('#3AADA8')   # activa-teal → accentos, gráficos
@@ -779,6 +917,7 @@ class ReporteService:
 
             cover_data = [
                 ['Tipo de reporte', tipo_reporte],
+                ['Programa', reporte_data.nombre_programa or 'Consolidado - Todos los programas'],
                 ['Responsable', responsable],
                 ['Período',
                  f"{reporte_data.fecha_inicio.strftime('%d/%m/%Y')}  —  "
@@ -904,18 +1043,26 @@ class ReporteService:
                           'CF', 'GP', 'M', 'V', 'TP', 'RH', 'EC']
             emp_rows = [header_row]
             for emp in reporte_data.emprendedores:
-                emp_rows.append([
-                    f'{emp.nombre} {emp.apellido}',
-                    emp.emprendimiento or 'N/A',
-                    f'{emp.promedio_general}',
-                    f'{emp.promedio_cf}',
-                    f'{emp.promedio_gp}',
-                    f'{emp.promedio_m}',
-                    f'{emp.promedio_v}',
-                    f'{emp.promedio_tp}',
-                    f'{emp.promedio_rh}',
-                    f'{emp.promedio_ec}',
-                ])
+                if emp.estado_diagnostico == "Sin diagnóstico" or emp.num_diagnosticos == 0 or emp.promedio_general is None:
+                    emp_rows.append([
+                        f'{emp.nombre} {emp.apellido}',
+                        emp.emprendimiento or 'N/A',
+                        'Sin diagnóstico',
+                        '-', '-', '-', '-', '-', '-', '-'
+                    ])
+                else:
+                    emp_rows.append([
+                        f'{emp.nombre} {emp.apellido}',
+                        emp.emprendimiento or 'N/A',
+                        f'{emp.promedio_general}',
+                        f'{emp.promedio_cf}',
+                        f'{emp.promedio_gp}',
+                        f'{emp.promedio_m}',
+                        f'{emp.promedio_v}',
+                        f'{emp.promedio_tp}',
+                        f'{emp.promedio_rh}',
+                        f'{emp.promedio_ec}',
+                    ])
 
             col_w = [1.3 * inch, 1.3 * inch, 0.55 * inch,
                      0.45 * inch, 0.45 * inch, 0.45 * inch,
@@ -2035,10 +2182,21 @@ class ReporteService:
     # REPORTE COMPARATIVO DE TODOS LOS MENTORES
     # ══════════════════════════════════════════════════════════════
 
-    async def get_reporte_data_todos_mentores(self, admin_id: Optional[str] = None) -> ReporteDataTodosMentores:
-        """Obtiene estadísticas agrupadas por mentor para el reporte comparativo."""
+    async def get_reporte_data_todos_mentores(self, admin_id: Optional[str] = None, id_programa: Optional[int] = None) -> ReporteDataTodosMentores:
+        """Obtiene estadísticas agrupadas por mentor para el reporte comparativo (Spec 003)."""
         try:
             from app.services.org_filter import get_admin_org_user_ids
+
+            nombre_programa = "Consolidado - Todos los programas"
+            if id_programa:
+                try:
+                    p_res = self.supabase.table("programa").select("nombre").eq("id_programa", id_programa).execute()
+                    if isinstance(p_res.data, list) and len(p_res.data) > 0 and isinstance(p_res.data[0], dict) and p_res.data[0].get("nombre"):
+                        nombre_programa = str(p_res.data[0]["nombre"])
+                    else:
+                        nombre_programa = f"Programa {id_programa}"
+                except Exception:
+                    nombre_programa = f"Programa {id_programa}"
 
             # 1. Mentores activos (filtrados por organización si se especifica admin_id)
             ment_query = self.supabase.table("usuario") \
@@ -2055,19 +2213,41 @@ class ReporteService:
                     else:
                         ment_query = ment_query.in_("id_usuario", org_users)
 
+            if id_programa:
+                # Filtrar solo mentores enrolados en el programa
+                prog_m_res = self.supabase.table("usuario_programa") \
+                    .select("id_usuario") \
+                    .eq("id_programa", id_programa) \
+                    .execute()
+                prog_m_ids = [p["id_usuario"] for p in (prog_m_res.data or [])]
+                ment_query = ment_query.in_("id_usuario", prog_m_ids if prog_m_ids else ["00000000-0000-0000-0000-000000000000"])
+
             mentores_resp = ment_query.execute()
             if not mentores_resp.data:
-                raise HTTPException(status_code=404, detail="No hay mentores registrados en la organización")
+                return ReporteDataTodosMentores(
+                    fecha_generacion=datetime.now(),
+                    nombre_programa=nombre_programa,
+                    mentores=[]
+                )
 
             mentores_raw = mentores_resp.data
             mentor_ids = [m["id_usuario"] for m in mentores_raw]
 
-            # 2. Todas las asignaciones activas
+            # 2. Asignaciones
             asig_resp = self.supabase.table("asignacion_mentor") \
                 .select("id_mentor, id_emprendedor") \
                 .in_("id_mentor", mentor_ids) \
                 .execute()
             asignaciones = asig_resp.data or []
+
+            # Si hay id_programa, filtrar emprendedores que también pertenezcan a ese programa
+            if id_programa:
+                emp_in_p = self.supabase.table("usuario_programa") \
+                    .select("id_usuario") \
+                    .eq("id_programa", id_programa) \
+                    .execute()
+                valid_p_emps = {u["id_usuario"] for u in (emp_in_p.data or [])}
+                asignaciones = [a for a in asignaciones if a["id_emprendedor"] in valid_p_emps]
 
             # Mapa mentor → emprendedores
             mentor_emp_map: dict = {m["id_usuario"]: [] for m in mentores_raw}
@@ -2076,26 +2256,22 @@ class ReporteService:
                 if mid in mentor_emp_map:
                     mentor_emp_map[mid].append(a["id_emprendedor"])
 
-            # Todos los emprendedores únicos
             all_emp_ids = list({e for emps in mentor_emp_map.values() for e in emps})
-            if not all_emp_ids:
-                raise HTTPException(status_code=404, detail="No hay emprendedores asignados a ningún mentor")
 
-            # 3. Todos los diagnósticos completados
-            diag_resp = self.supabase.table("diagnostico") \
-                .select("*") \
-                .in_("id_usuario", all_emp_ids) \
-                .not_.is_("resultado", "null") \
-                .execute()
-            diagnosticos = diag_resp.data or []
-
-            # Mapa emprendedor → diagnósticos
             diag_by_emp: dict = {}
-            for d in diagnosticos:
-                eid = d["id_usuario"]
-                diag_by_emp.setdefault(eid, []).append(d)
+            if all_emp_ids:
+                diag_resp = self.supabase.table("diagnostico") \
+                    .select("*") \
+                    .in_("id_usuario", all_emp_ids) \
+                    .not_.is_("resultado", "null") \
+                    .execute()
+                diagnosticos = diag_resp.data or []
+                for d in diagnosticos:
+                    eid = d.get("id_usuario")
+                    if eid:
+                        diag_by_emp.setdefault(eid, []).append(d)
 
-            # 4. Calcular estadísticas por mentor
+            # 4. Calcular estadísticas por mentor (con corrección de bug 'n')
             resultados = []
             for m in mentores_raw:
                 mid = m["id_usuario"]
@@ -2106,11 +2282,6 @@ class ReporteService:
                 all_diags_m = [d for eid in emp_ids_m for d in diag_by_emp.get(eid, [])]
                 if not all_diags_m:
                     continue
-
-                areas = {k: 0.0 for k in ["cf", "gp", "m", "v", "tp", "rh", "ec"]}
-                for d in all_diags_m:
-                    for area in areas:
-                        areas[area] += d.get(f"puntaje_{area}", 0) or 0
 
                 # Obtener el último diagnóstico válido por emprendedor
                 latest_map = {}
@@ -2125,33 +2296,39 @@ class ReporteService:
                         fecha_prev = latest_map[uid].get("fecha_inicio")
                         if fecha_curr and fecha_prev and str(fecha_curr) > str(fecha_prev):
                             latest_map[uid] = d
-                
+
                 diags_validas = list(latest_map.values())
                 n_validas = len(diags_validas)
-                aceptados = len([d for d in diags_validas if d.get("resultado") in ("ACEPTADO", "APROBADO", "EXIMIDO")])
-                tasa = round(aceptados / n_validas * 100, 1) if n_validas else 0
-                prom_general = round(sum(areas.values()) / (n * 7), 1)
+                n = n_validas  # Bug fix: n ahora siempre está definido
 
-                resultados.append(MentorResumenReporte(
-                    nombre=m["nombre"],
-                    apellido=m["apellido"],
-                    total_emprendedores=len(emp_ids_m),
-                    promedio_general=prom_general,
-                    promedio_cf=round(areas["cf"] / n, 1),
-                    promedio_gp=round(areas["gp"] / n, 1),
-                    promedio_m=round(areas["m"] / n, 1),
-                    promedio_v=round(areas["v"] / n, 1),
-                    promedio_tp=round(areas["tp"] / n, 1),
-                    promedio_rh=round(areas["rh"] / n, 1),
-                    promedio_ec=round(areas["ec"] / n, 1),
-                    tasa_aprobado=tasa,
-                ))
+                if n > 0:
+                    areas = {k: 0.0 for k in ["cf", "gp", "m", "v", "tp", "rh", "ec"]}
+                    for d in diags_validas:
+                        for area in areas:
+                            areas[area] += float(d.get(f"puntaje_{area}", 0) or 0)
 
-            if not resultados:
-                raise HTTPException(status_code=404, detail="No hay diagnósticos disponibles para generar el reporte")
+                    aceptados = len([d for d in diags_validas if d.get("resultado") in ("ACEPTADO", "APROBADO", "EXIMIDO")])
+                    tasa = round(aceptados / n * 100, 1)
+                    prom_general = round(sum(areas.values()) / (n * 7), 1)
+
+                    resultados.append(MentorResumenReporte(
+                        nombre=m["nombre"],
+                        apellido=m["apellido"],
+                        total_emprendedores=len(emp_ids_m),
+                        promedio_general=prom_general,
+                        promedio_cf=round(areas["cf"] / n, 1),
+                        promedio_gp=round(areas["gp"] / n, 1),
+                        promedio_m=round(areas["m"] / n, 1),
+                        promedio_v=round(areas["v"] / n, 1),
+                        promedio_tp=round(areas["tp"] / n, 1),
+                        promedio_rh=round(areas["rh"] / n, 1),
+                        promedio_ec=round(areas["ec"] / n, 1),
+                        tasa_aprobado=tasa,
+                    ))
 
             return ReporteDataTodosMentores(
                 fecha_generacion=datetime.now(),
+                nombre_programa=nombre_programa,
                 mentores=resultados,
             )
 

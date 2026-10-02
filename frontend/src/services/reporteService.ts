@@ -30,10 +30,13 @@ export const reporteService = {
     },
 
     /** Reporte PDF comparativo de todos los mentores */
-    async generarReporteTodosMentores(adminId?: string): Promise<Blob> {
+    async generarReporteTodosMentores(adminId?: string, idPrograma?: number | null): Promise<Blob> {
+        const payload: Record<string, any> = {};
+        if (adminId) payload.admin_id = adminId;
+        if (idPrograma !== undefined && idPrograma !== null) payload.id_programa = idPrograma;
         const response = await api.post<Blob>(
             '/reporte/generar-todos-mentores',
-            adminId ? { admin_id: adminId } : {},
+            payload,
             { responseType: 'blob' }
         );
         return response.data;

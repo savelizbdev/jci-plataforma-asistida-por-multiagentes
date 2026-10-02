@@ -6,12 +6,28 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Layout } from '../components/common/Layout';
 import { reporteService } from '../services/reporteService';
+import { programaService } from '../services/programaService';
 import { api } from '../services/api';
 import { ADMIN_MENU_ITEMS } from '../constants/adminMenu';
 
+interface Mentor {
+    id_usuario: string;
+    nombre: string;
+    apellido: string;
+    programas_ids?: number[];
+}
 
-interface Mentor { id_usuario: string; nombre: string; apellido: string; }
-interface Emprendedor { id_usuario: string; nombre: string; apellido: string; }
+interface Emprendedor {
+    id_usuario: string;
+    nombre: string;
+    apellido: string;
+    programas_ids?: number[];
+}
+
+interface ProgramaOption {
+    id_programa: number;
+    nombre_programa: string;
+}
 
 type PanelKey = 'todos-mentores' | 'mentor-especifico' | 'todos-emprendedores' | 'emprendedor-especifico';
 
@@ -81,6 +97,11 @@ const PANELS = [
 export const GenerarReportesAdmin = () => {
     const { user, logout } = useAuth();
 
+    // Programas
+    const [programas, setProgramas] = useState<ProgramaOption[]>([]);
+    const [selectedPrograma, setSelectedPrograma] = useState<string>(''); // '' = Todos los programas
+    const [loadingProgramas, setLoadingProgramas] = useState(false);
+
     // Estado por panel
     const [activePanel, setActivePanel] = useState<PanelKey | null>(null);
     const [loading, setLoading] = useState(false);
@@ -97,6 +118,26 @@ export const GenerarReportesAdmin = () => {
     const [fechaFin, setFechaFin] = useState('');
     const [selectedMentor, setSelectedMentor] = useState('');
     const [selectedEmprendedor, setSelectedEmprendedor] = useState('');
+
+    // Cargar programas del admin
+    useEffect(() => {
+        if (!user?.id_usuario) return;
+        const cargarProgramas = async () => {
+            try {
+                setLoadingProgramas(true);
+                const progs = await programaService.obtenerMisProgramas(user.id_usuario);
+                setProgramas(progs.map(p => ({
+                    id_programa: p.id_programa,
+                    nombre_programa: p.nombre_programa
+                })));
+            } catch (e) {
+                console.error('Error cargando programas del administrador:', e);
+            } finally {
+                setLoadingProgramas(false);
+            }
+        };
+        cargarProgramas();
+    }, [user?.id_usuario]);
 
     // Cargar listas al abrir paneles que las necesitan
     useEffect(() => {
@@ -128,6 +169,21 @@ export const GenerarReportesAdmin = () => {
         setSuccess(null);
     };
 
+    const handleProgramaChange = (progId: string) => {
+        setSelectedPrograma(progId);
+        resetFeedback();
+        // Si el mentor o emprendedor seleccionado no pertenece al programa, resetear selección
+        if (progId) {
+            const pid = Number(progId);
+            if (selectedMentor && !mentores.find(m => m.id_usuario === selectedMentor)?.programas_ids?.includes(pid)) {
+                setSelectedMentor('');
+            }
+            if (selectedEmprendedor && !emprendedores.find(e => e.id_usuario === selectedEmprendedor)?.programas_ids?.includes(pid)) {
+                setSelectedEmprendedor('');
+            }
+        }
+    };
+
     const downloadPdf = (blob: Blob, filename: string) => {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -145,14 +201,18 @@ export const GenerarReportesAdmin = () => {
         try {
             setLoading(true);
             let blob: Blob;
+            const idProgramaNum = selectedPrograma ? Number(selectedPrograma) : null;
 
             if (activePanel === 'todos-mentores') {
-                blob = await reporteService.generarReporteTodosMentores(user?.id_usuario);
+                blob = await reporteService.generarReporteTodosMentores(user?.id_usuario, idProgramaNum);
                 downloadPdf(blob, `reporte_todos_mentores.pdf`);
 
             } else if (activePanel === 'mentor-especifico') {
                 if (!selectedMentor) { setError('Selecciona un mentor'); return; }
-                blob = await reporteService.generarReporteMentor({ id_mentor: selectedMentor });
+                blob = await reporteService.generarReporteMentor({
+                    id_mentor: selectedMentor,
+                    id_programa: idProgramaNum
+                });
                 const m = mentores.find(x => x.id_usuario === selectedMentor);
                 downloadPdf(blob, `reporte_mentor_${m?.apellido || 'desconocido'}.pdf`);
 
@@ -163,12 +223,16 @@ export const GenerarReportesAdmin = () => {
                     fecha_inicio: new Date(fechaInicio).toISOString(),
                     fecha_fin: new Date(fechaFin).toISOString(),
                     admin_id: user?.id_usuario,
+                    id_programa: idProgramaNum,
                 });
                 downloadPdf(blob, `reporte_todos_emprendedores_${fechaInicio}_${fechaFin}.pdf`);
 
             } else if (activePanel === 'emprendedor-especifico') {
                 if (!selectedEmprendedor) { setError('Selecciona un emprendedor'); return; }
-                blob = await reporteService.generarReporteEmprendedor({ id_emprendedor: selectedEmprendedor });
+                blob = await reporteService.generarReporteEmprendedor({
+                    id_emprendedor: selectedEmprendedor,
+                    id_programa: idProgramaNum
+                });
                 const e = emprendedores.find(x => x.id_usuario === selectedEmprendedor);
                 downloadPdf(blob, `reporte_emprendedor_${e?.apellido || 'desconocido'}.pdf`);
             }
@@ -188,18 +252,63 @@ export const GenerarReportesAdmin = () => {
         setActivePanel(prev => (prev === key ? null : key));
     };
 
+    // Listas filtradas según el programa seleccionado
+    const mentoresFiltrados = selectedPrograma
+        ? mentores.filter(m => m.programas_ids?.includes(Number(selectedPrograma)))
+        : mentores;
+
+    const emprendedoresFiltrados = selectedPrograma
+        ? emprendedores.filter(e => e.programas_ids?.includes(Number(selectedPrograma)))
+        : emprendedores;
+
     return (
         <Layout menuItems={ADMIN_MENU_ITEMS} onLogout={logout}>
             <div className="px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
 
                 {/* Header */}
-                <div className="mb-7">
+                <div className="mb-6">
                     <h1 className="text-2xl sm:text-3xl font-extrabold text-neutral-800 tracking-tight mb-1">
                         Centro de Reportes
                     </h1>
                     <p className="text-sm text-neutral-500 font-medium">
-                        Selecciona el tipo de reporte que deseas generar
+                        Selecciona el tipo de reporte y filtra por programa según lo requerido
                     </p>
+                </div>
+
+                {/* Selector Global de Programa */}
+                <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm mb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <label htmlFor="admin-programa-selector" className="block text-sm font-bold text-neutral-800 mb-1">
+                                Filtrar por Programa
+                            </label>
+                            <p className="text-xs text-neutral-500">
+                                Selecciona un programa para acotar los datos generados o consulta el consolidado general.
+                            </p>
+                        </div>
+                        <div className="w-full sm:w-80">
+                            {loadingProgramas ? (
+                                <div className="flex items-center gap-2 text-xs text-neutral-500 py-2">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-activa-teal"></div>
+                                    Cargando programas...
+                                </div>
+                            ) : (
+                                <select
+                                    id="admin-programa-selector"
+                                    value={selectedPrograma}
+                                    onChange={(e) => handleProgramaChange(e.target.value)}
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-medium text-neutral-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-all cursor-pointer"
+                                >
+                                    <option value="">Todos los programas (Consolidado)</option>
+                                    {programas.map((prog) => (
+                                        <option key={prog.id_programa} value={prog.id_programa}>
+                                            {prog.nombre_programa}
+                                        </option>
+                                    ))}
+                                </select>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {/* Grid de 4 paneles */}
@@ -261,9 +370,11 @@ export const GenerarReportesAdmin = () => {
                                         {/* Controles según tipo */}
                                         {panel.key === 'todos-mentores' && (
                                             <div className="bg-activa-teal/5 border border-activa-teal/20 rounded-xl p-3 text-xs text-neutral-700">
-                                                <p className="font-semibold text-activa-dark-teal mb-1">El reporte incluirá:</p>
+                                                <p className="font-semibold text-activa-dark-teal mb-1">
+                                                    El reporte incluirá {selectedPrograma ? `(Programa: ${programas.find(p => p.id_programa === Number(selectedPrograma))?.nombre_programa || selectedPrograma})` : '(Consolidado - Todos los programas)'}:
+                                                </p>
                                                 <ul className="list-disc list-inside space-y-0.5">
-                                                    <li>Tabla comparativa de todos los mentores activos</li>
+                                                    <li>Tabla comparativa de mentores activos</li>
                                                     <li>Promedios por área de cada mentor</li>
                                                     <li>Gráfico de barras comparativo</li>
                                                     <li>Tasa de aprobado de cada grupo</li>
@@ -288,36 +399,48 @@ export const GenerarReportesAdmin = () => {
                                                         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-all"
                                                     >
                                                         <option value="">— Selecciona un mentor —</option>
-                                                        {mentores.map(m => (
+                                                        {mentoresFiltrados.map(m => (
                                                             <option key={m.id_usuario} value={m.id_usuario}>
                                                                 {m.nombre} {m.apellido}
                                                             </option>
                                                         ))}
                                                     </select>
                                                 )}
+                                                {mentoresFiltrados.length === 0 && !loadingLists && (
+                                                    <p className="mt-1.5 text-xs text-amber-600">
+                                                        No hay mentores registrados{selectedPrograma ? ' para este programa' : ''}.
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
 
                                         {panel.key === 'todos-emprendedores' && (
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                                                        Fecha inicio <span className="text-activa-coral">*</span>
-                                                    </label>
-                                                    <input type="date" value={fechaInicio}
-                                                        onChange={(e) => { setFechaInicio(e.target.value); resetFeedback(); }}
-                                                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-all"
-                                                    />
+                                            <div className="space-y-3">
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                                                            Fecha inicio <span className="text-activa-coral">*</span>
+                                                        </label>
+                                                        <input type="date" value={fechaInicio}
+                                                            onChange={(e) => { setFechaInicio(e.target.value); resetFeedback(); }}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-all"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
+                                                            Fecha fin <span className="text-activa-coral">*</span>
+                                                        </label>
+                                                        <input type="date" value={fechaFin}
+                                                            onChange={(e) => { setFechaFin(e.target.value); resetFeedback(); }}
+                                                            className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-all"
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                                                        Fecha fin <span className="text-activa-coral">*</span>
-                                                    </label>
-                                                    <input type="date" value={fechaFin}
-                                                        onChange={(e) => { setFechaFin(e.target.value); resetFeedback(); }}
-                                                        className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-all"
-                                                    />
-                                                </div>
+                                                {selectedPrograma && (
+                                                    <p className="text-xs text-activa-teal font-medium">
+                                                        Filtrando por programa: {programas.find(p => p.id_programa === Number(selectedPrograma))?.nombre_programa}
+                                                    </p>
+                                                )}
                                             </div>
                                         )}
 
@@ -338,12 +461,17 @@ export const GenerarReportesAdmin = () => {
                                                         className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-all"
                                                     >
                                                         <option value="">— Selecciona un emprendedor —</option>
-                                                        {emprendedores.map(e => (
+                                                        {emprendedoresFiltrados.map(e => (
                                                             <option key={e.id_usuario} value={e.id_usuario}>
                                                                 {e.nombre} {e.apellido}
                                                             </option>
                                                         ))}
                                                     </select>
+                                                )}
+                                                {emprendedoresFiltrados.length === 0 && !loadingLists && (
+                                                    <p className="mt-1.5 text-xs text-amber-600">
+                                                        No hay emprendedores registrados{selectedPrograma ? ' para este programa' : ''}.
+                                                    </p>
                                                 )}
                                             </div>
                                         )}

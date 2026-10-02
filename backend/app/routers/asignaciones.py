@@ -154,7 +154,7 @@ async def obtener_todos_emprendedores(admin_id: Optional[str] = Query(None)):
                 query = query.in_("id_usuario", org_users)
 
         response = query.execute()
-        return response.data or []
+        return _adjuntar_programas_ids(supabase, response.data or [])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener emprendedores: {str(e)}")
 

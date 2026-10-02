@@ -66,7 +66,8 @@ async def generar_reporte_mentor(request: ReporteMentorRequest):
 async def generar_reporte_todos_mentores(request: Optional[ReporteTodosMentoresRequest] = None):
     """Reporte PDF comparativo de todos los mentores de la organización del admin"""
     admin_id = request.admin_id if request else None
-    reporte_data = await reporte_service.get_reporte_data_todos_mentores(admin_id=admin_id)
+    id_programa = request.id_programa if request else None
+    reporte_data = await reporte_service.get_reporte_data_todos_mentores(admin_id=admin_id, id_programa=id_programa)
     pdf_bytes = await reporte_service.generate_pdf_todos_mentores(reporte_data)
     filename = "reporte_comparativo_mentores.pdf"
     return Response(

@@ -2,12 +2,18 @@
  * Página de Generación de Reportes para Mentor
  * Permite generar reportes PDF con estadísticas y gráficas
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Layout } from '../components/common/Layout';
 import { MenuItem } from '../components/common/Sidebar';
 import { reporteService } from '../services/reporteService';
+import { programaService } from '../services/programaService';
 import type { ReporteRequest } from '../types/reporte';
+
+interface ProgramaOption {
+    id_programa: number;
+    nombre_programa: string;
+}
 
 const menuItems: MenuItem[] = [
     { label: 'Dashboard', path: '/mentor/home' },
@@ -18,13 +24,33 @@ const menuItems: MenuItem[] = [
 
 export const GenerarReportes = () => {
     const { user, logout } = useAuth();
+    const [programas, setProgramas] = useState<ProgramaOption[]>([]);
+    const [selectedPrograma, setSelectedPrograma] = useState<string>(''); // '' = Todos los usuarios asignados
+    const [loadingProgramas, setLoadingProgramas] = useState(false);
     const [fechaInicio, setFechaInicio] = useState('');
     const [fechaFin, setFechaFin] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
-
+    useEffect(() => {
+        if (!user?.id_usuario) return;
+        const cargarProgramas = async () => {
+            try {
+                setLoadingProgramas(true);
+                const progs = await programaService.obtenerMisProgramas(user.id_usuario);
+                setProgramas(progs.map(p => ({
+                    id_programa: p.id_programa,
+                    nombre_programa: p.nombre_programa
+                })));
+            } catch (e) {
+                console.error('Error cargando programas del mentor:', e);
+            } finally {
+                setLoadingProgramas(false);
+            }
+        };
+        cargarProgramas();
+    }, [user?.id_usuario]);
 
     const handleGenerarReporte = async () => {
         if (!user) return;
@@ -51,7 +77,8 @@ export const GenerarReportes = () => {
             const request: ReporteRequest = {
                 id_mentor: user.id_usuario,
                 fecha_inicio: new Date(fechaInicio).toISOString(),
-                fecha_fin: new Date(fechaFin).toISOString()
+                fecha_fin: new Date(fechaFin).toISOString(),
+                id_programa: selectedPrograma ? Number(selectedPrograma) : null
             };
 
             const pdfBlob = await reporteService.generarReporte(request);
@@ -122,6 +149,29 @@ export const GenerarReportes = () => {
 
                     {/* Formulario */}
                     <div className="space-y-4">
+                        {/* Selector de Programa */}
+                        <div>
+                            <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+                                Programa
+                            </label>
+                            <select
+                                value={selectedPrograma}
+                                onChange={(e) => {
+                                    setSelectedPrograma(e.target.value);
+                                    setError(null);
+                                }}
+                                disabled={loadingProgramas}
+                                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-all shadow-sm"
+                            >
+                                <option value="">Todos los usuarios asignados</option>
+                                {programas.map((prog) => (
+                                    <option key={prog.id_programa} value={prog.id_programa}>
+                                        {prog.nombre_programa}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
                         {/* Fecha Inicio */}
                         <div>
                             <label className="block text-sm font-medium text-neutral-700 mb-1.5">

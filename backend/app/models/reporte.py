@@ -10,6 +10,7 @@ class ReporteRequest(BaseModel):
     id_mentor: str
     fecha_inicio: datetime
     fecha_fin: datetime
+    id_programa: Optional[int] = None
 
     @validator('fecha_fin')
     def validate_dates(cls, v, values):
@@ -22,7 +23,8 @@ class ReporteRequest(BaseModel):
             "example": {
                 "id_mentor": "550e8400-e29b-41d4-a716-446655440000",
                 "fecha_inicio": "2024-01-01T00:00:00",
-                "fecha_fin": "2024-12-31T23:59:59"
+                "fecha_fin": "2024-12-31T23:59:59",
+                "id_programa": 1
             }
         }
 
@@ -31,6 +33,7 @@ class ReporteAdminRequest(BaseModel):
     fecha_inicio: datetime
     fecha_fin: datetime
     admin_id: Optional[str] = None
+    id_programa: Optional[int] = None
 
     @validator('fecha_fin')
     def validate_dates(cls, v, values):
@@ -41,26 +44,29 @@ class ReporteAdminRequest(BaseModel):
 
 class ReporteTodosMentoresRequest(BaseModel):
     admin_id: Optional[str] = None
+    id_programa: Optional[int] = None
 
 
 class ReporteMentorRequest(BaseModel):
     """Reporte de un mentor específico (todo el historial, sin filtro de fechas)"""
     id_mentor: str
+    id_programa: Optional[int] = None
 
 
 class EmprendedorReporte(BaseModel):
     nombre: str
     apellido: str
     emprendimiento: Optional[str]
-    promedio_general: float
-    promedio_cf: float
-    promedio_gp: float
-    promedio_m: float
-    promedio_v: float
-    promedio_tp: float
-    promedio_rh: float
-    promedio_ec: float
-    num_diagnosticos: int
+    promedio_general: Optional[float] = None
+    promedio_cf: Optional[float] = None
+    promedio_gp: Optional[float] = None
+    promedio_m: Optional[float] = None
+    promedio_v: Optional[float] = None
+    promedio_tp: Optional[float] = None
+    promedio_rh: Optional[float] = None
+    promedio_ec: Optional[float] = None
+    num_diagnosticos: int = 0
+    estado_diagnostico: str = "Con diagnóstico"
 
 
 class EstadisticasGlobales(BaseModel):
@@ -86,6 +92,7 @@ class ReporteData(BaseModel):
     mentor_apellido: str
     fecha_inicio: datetime
     fecha_fin: datetime
+    nombre_programa: Optional[str] = "Consolidado - Todos los programas"
     emprendedores: List[EmprendedorReporte]
     estadisticas: EstadisticasGlobales
     diagnosticos_timeline: List[DiagnosticoPorFecha]
@@ -93,6 +100,7 @@ class ReporteData(BaseModel):
 
 class ReporteEmprendedorRequest(BaseModel):
     id_emprendedor: str
+    id_programa: Optional[int] = None
 
 
 class SeccionItem(BaseModel):
@@ -145,6 +153,7 @@ class ReporteDataMentor(BaseModel):
     mentor_nombre: str
     mentor_apellido: str
     fecha_generacion: datetime
+    nombre_programa: Optional[str] = "Consolidado - Todos los programas"
     emprendedores: List[EmprendedorReporte]
     estadisticas: EstadisticasGlobales
     diagnosticos_timeline: List[DiagnosticoPorFecha]
@@ -153,4 +162,5 @@ class ReporteDataMentor(BaseModel):
 class ReporteDataTodosMentores(BaseModel):
     """Datos para reporte comparativo de todos los mentores"""
     fecha_generacion: datetime
+    nombre_programa: Optional[str] = "Consolidado - Todos los programas"
     mentores: List[MentorResumenReporte]
