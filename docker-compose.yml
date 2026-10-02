@@ -50,10 +50,10 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:5173}
       - ENVIRONMENT=development
       - IA_DIAGNOSTICO_URL=http://ia-diagnostico:9000
-      - IA_BASE_URL=http://ia-seguimiento:9000
+      - EMAIL_SENDER=${EMAIL_SENDER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
     depends_on:
       - ia-diagnostico
-      - ia-seguimiento
     networks:
       - jci-network
 
@@ -72,27 +72,6 @@ services:
     environment:
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - BACKEND_URL=http://backend:8000
-    networks:
-      - jci-network
-
-  # -----------------------------------------------------------
-  # IA Seguimiento — ADK api_server multi_agente_seguimiento
-  # -----------------------------------------------------------
-  ia-seguimiento:
-    build:
-      context: ./IA
-      dockerfile: Dockerfile
-    command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
-    # ports:
-    #   - "9001:9000"            # Host 9001 → contenedor 9000 (para debug)
-    volumes:
-      - ./IA:/app
-    environment:
-      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - EMAIL_SENDER=${EMAIL_SENDER}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
       - BACKEND_URL=http://backend:8000
     networks:
       - jci-network

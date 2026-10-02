@@ -1,6 +1,6 @@
 # ============================================================
 # IA — Google ADK api_server
-# Usado por: ia-diagnostico y ia-seguimiento
+# Usado por: ia-diagnostico
 # El CMD se define en docker-compose para cada servicio
 # ============================================================
 FROM python:3.11-slim

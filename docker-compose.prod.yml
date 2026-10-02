@@ -68,12 +68,11 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - ENVIRONMENT=production
       - IA_DIAGNOSTICO_URL=http://ia-diagnostico:9000
-      - IA_BASE_URL=http://ia-seguimiento:9000
+      - EMAIL_SENDER=${EMAIL_SENDER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
     restart: unless-stopped
     depends_on:
       ia-diagnostico:
-        condition: service_healthy
-      ia-seguimiento:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
@@ -98,32 +97,6 @@ services:
     environment:
       - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - BACKEND_URL=http://backend:8000
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/list-apps')"]
-      interval: 20s
-      timeout: 10s
-      retries: 6
-      start_period: 40s
-    networks:
-      - jci-network
-
-  # -----------------------------------------------------------
-  # IA Seguimiento — Producción (sin puerto expuesto al exterior)
-  # -----------------------------------------------------------
-  ia-seguimiento:
-    build:
-      context: ./IA
-      dockerfile: Dockerfile
-    command: ["adk", "api_server", ".", "--port", "9000", "--host", "0.0.0.0"]
-    expose:
-      - "9000"
-    environment:
-      - GOOGLE_GENAI_USE_VERTEXAI=${GOOGLE_GENAI_USE_VERTEXAI:-FALSE}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - EMAIL_SENDER=${EMAIL_SENDER}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
       - BACKEND_URL=http://backend:8000
     restart: unless-stopped
     healthcheck:
