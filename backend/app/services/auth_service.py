@@ -324,3 +324,37 @@ class AuthService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al actualizar rol, permisos y estado: {str(e)}"
             )
+
+    async def toggle_user_status(self, user_id: str) -> Dict[str, Any]:
+        """
+        Alterna el estado (activo/inactivo) de un usuario
+        
+        Args:
+            user_id: ID del usuario
+            
+        Returns:
+            Dict con id_usuario y nuevo estado
+        """
+        try:
+            res = self.supabase.table("usuario").select("estado").eq("id_usuario", user_id).execute()
+            if not res.data or len(res.data) == 0:
+                raise HTTPException(status_code=404, detail="Usuario no encontrado")
+                
+            current_estado = res.data[0].get("estado", True)
+            new_estado = not current_estado
+            
+            update_res = self.supabase.table("usuario").update({"estado": new_estado}).eq("id_usuario", user_id).execute()
+            if not update_res.data or len(update_res.data) == 0:
+                raise HTTPException(status_code=400, detail="No se pudo actualizar el estado del usuario")
+                
+            return {
+                "id_usuario": user_id,
+                "estado": new_estado
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al alternar estado del usuario: {str(e)}"
+            )

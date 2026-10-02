@@ -254,3 +254,18 @@ async def update_user_role_permissions(user_id: str, update_data: UpdateRolePerm
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al actualizar rol y permisos: {str(e)}"
         )
+
+
+@router.patch("/{user_id}/toggle-status")
+async def toggle_user_status(user_id: str):
+    """
+    Alterna el estado activo/inactivo de un usuario (para control switch en panel)
+    
+    Args:
+        user_id: ID del usuario
+        
+    Returns:
+        dict: { id_usuario, estado }
+    """
+    auth_service = AuthService()
+    return await auth_service.toggle_user_status(user_id)

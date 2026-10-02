@@ -65,4 +65,11 @@ Thumbs.db
 # ADK (Google Agent Development Kit)
 # =============================
 IA/**/.adk/
+
+# =============================
+# Specs y Docs
+# =============================
 /docs
+AGENTS.md
+MEMORY.md
+/specs

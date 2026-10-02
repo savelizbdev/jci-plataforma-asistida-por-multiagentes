@@ -173,9 +173,16 @@ export const TareasEmprendedor = () => {
 
                                         {/* Contenido */}
                                         <div className="flex-1 min-w-0">
-                                            <h3 className={`text-base font-bold mb-1 ${completada ? 'text-neutral-400 line-through' : 'text-neutral-800'}`}>
-                                                {tarea.titulo}
-                                            </h3>
+                                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                <h3 className={`text-base font-bold ${completada ? 'text-neutral-400 line-through' : 'text-neutral-800'}`}>
+                                                    {tarea.titulo}
+                                                </h3>
+                                                {tarea.nombre_programa && (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-secondary-50 text-activa-teal border border-secondary-100 shadow-2xs">
+                                                        {tarea.nombre_programa}
+                                                    </span>
+                                                )}
+                                            </div>
 
                                             {tarea.descripcion && (
                                                 <p className="text-neutral-500 text-sm mb-2">

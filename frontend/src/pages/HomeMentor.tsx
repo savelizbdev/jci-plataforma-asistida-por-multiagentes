@@ -54,51 +54,50 @@ export const HomeMentor = () => {
     const [loadingProgramas, setLoadingProgramas] = useState(true);
     const [showProgramModal, setShowProgramModal] = useState(false);
 
-    // Cargar programas del mentor
+    // Cargar inicial: programas y estadísticas del primer programa
     useEffect(() => {
         if (!user?.id_usuario) return;
-        const fetchProgramas = async () => {
+
+        const cargarInicial = async () => {
             setLoadingProgramas(true);
             try {
                 const progs = await programaService.obtenerMisProgramas(user.id_usuario);
                 setProgramas(progs);
                 if (progs.length === 0) {
                     setShowProgramModal(true);
-                } else if (!selectedProgramaId) {
-                    setSelectedProgramaId(progs[0].id_programa);
+                    setLoading(false);
+                } else {
+                    const progInicial = progs[0].id_programa;
+                    setSelectedProgramaId(progInicial);
+                    const data = await mentorService.getMentorDashboard(user.id_usuario, progInicial);
+                    setStats(data);
+                    setError(null);
                 }
             } catch (err) {
-                console.error('Error al cargar programas del mentor:', err);
+                console.error('Error al inicializar panel de mentor:', err);
+                setError('Error al cargar datos del dashboard');
             } finally {
                 setLoadingProgramas(false);
-            }
-        };
-        fetchProgramas();
-    }, [user?.id_usuario]);
-
-    // Cargar estadísticas según el programa seleccionado
-    useEffect(() => {
-        if (!user || loadingProgramas) return;
-
-        const fetchDashboardStats = async () => {
-            try {
-                setLoading(true);
-                const data = await mentorService.getMentorDashboard(
-                    user.id_usuario,
-                    selectedProgramaId ?? undefined
-                );
-                setStats(data);
-                setError(null);
-            } catch (err) {
-                console.error('Error al cargar estadísticas:', err);
-                setError('Error al cargar las estadísticas del dashboard');
-            } finally {
                 setLoading(false);
             }
         };
 
-        fetchDashboardStats();
-    }, [user, selectedProgramaId, loadingProgramas]);
+        cargarInicial();
+    }, [user?.id_usuario]);
+
+    // Función directa para cuando el usuario cambia el programa en el selector
+    const handleSelectPrograma = async (idPrograma: number) => {
+        if (!user?.id_usuario) return;
+        setSelectedProgramaId(idPrograma);
+        try {
+            const data = await mentorService.getMentorDashboard(user.id_usuario, idPrograma);
+            setStats(data);
+            setError(null);
+        } catch (err) {
+            console.error('Error al cambiar de programa:', err);
+            setError('Error al cargar datos del programa');
+        }
+    };
 
 
 
@@ -194,7 +193,42 @@ export const HomeMentor = () => {
         }
     };
 
-    if (loading) {
+    if (showProgramModal && programas.length === 0) {
+        return (
+            <Layout menuItems={menuItems} onLogout={logout}>
+                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+                    <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center text-jci-blue mb-4 border border-primary-100 shadow-2xs">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h2 className="text-xl font-bold text-neutral-800 mb-2">Ingreso a Programa Requerido</h2>
+                    <p className="text-sm text-neutral-500 max-w-md mb-6">
+                        Para visualizar las estadísticas y emprendedores de mentoría, debes ingresar el código de tu programa.
+                    </p>
+                    <button
+                        onClick={() => setShowProgramModal(true)}
+                        className="px-5 py-2.5 bg-jci-blue hover:bg-primary-600 text-white rounded-xl font-semibold shadow-sm transition-colors"
+                    >
+                        Ingresar Código de Programa
+                    </button>
+                </div>
+                {user?.id_usuario && (
+                    <CodigoProgramaModal
+                        isOpen={true}
+                        userId={user.id_usuario}
+                        isDismissable={false}
+                        onSuccess={() => {
+                            setShowProgramModal(false);
+                            window.location.reload();
+                        }}
+                    />
+                )}
+            </Layout>
+        );
+    }
+
+    if (loading && !stats) {
         return (
             <Layout menuItems={menuItems} onLogout={logout}>
                 <LoadingScreen fullScreen={false} message="Cargando panel de mentoría..." />
@@ -225,7 +259,7 @@ export const HomeMentor = () => {
                             <ProgramaSelector
                                 programas={programas}
                                 selectedProgramaId={selectedProgramaId}
-                                onSelectPrograma={(id) => setSelectedProgramaId(id)}
+                                onSelectPrograma={handleSelectPrograma}
                                 loading={loadingProgramas}
                             />
                         </div>

@@ -53,4 +53,18 @@ export const userService = {
             );
         }
     },
+
+    /**
+     * Alterna de forma atómica el estado activo/inactivo de un usuario (para control tipo switch)
+     */
+    async toggleUserStatus(userId: string): Promise<{ id_usuario: string; estado: boolean }> {
+        try {
+            const response = await api.patch<{ id_usuario: string; estado: boolean }>(`/auth/${userId}/toggle-status`);
+            return response.data;
+        } catch (error: any) {
+            throw new Error(
+                error.response?.data?.detail || 'Error al alternar estado del usuario'
+            );
+        }
+    },
 };

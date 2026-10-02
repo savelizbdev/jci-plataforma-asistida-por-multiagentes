@@ -52,8 +52,8 @@ export const CodigoProgramaModal: React.FC<CodigoProgramaModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in">
-            <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative text-neutral-800 overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-fade-in overflow-y-auto">
+            <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl relative text-neutral-800 my-auto max-h-[90vh] overflow-y-auto">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-jci-blue via-activa-teal to-activa-coral"></div>
 
                 {isDismissable && onClose && (

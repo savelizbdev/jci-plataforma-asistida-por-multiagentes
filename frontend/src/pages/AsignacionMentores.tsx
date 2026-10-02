@@ -16,6 +16,7 @@ import {
 } from '../services/asignacionService';
 import toast from 'react-hot-toast';
 import { ADMIN_MENU_ITEMS } from '../constants/adminMenu';
+import { programaService } from '../services/programaService';
 
 
 export const AsignacionMentores = () => {
@@ -26,6 +27,7 @@ export const AsignacionMentores = () => {
     const [emprendedoresConMentor, setEmprendedoresConMentor] = useState<EmprendedorConMentor[]>([]);
     const [mentorSeleccionado, setMentorSeleccionado] = useState<string>('');
     const [emprendedoresSeleccionados, setEmprendedoresSeleccionados] = useState<Set<string>>(new Set());
+    const [programasMap, setProgramasMap] = useState<Record<number, string>>({});
     const [loading, setLoading] = useState(true);
     const [guardando, setGuardando] = useState(false);
     const [quitando, setQuitando] = useState<string | null>(null); // id_emprendedor que se está quitando
@@ -36,17 +38,25 @@ export const AsignacionMentores = () => {
     }, [user?.id_usuario]);
 
     const cargarDatos = async () => {
+        if (!user?.id_usuario) return;
         try {
             setLoading(true);
-            const [mentoresData, emprendedoresData, conMentorData] = await Promise.all([
-                obtenerMentores(user?.id_usuario),
-                obtenerEmprendedoresSinMentor(user?.id_usuario),
-                obtenerEmprendedoresConMentor(user?.id_usuario)
+            const [mentoresData, emprendedoresData, conMentorData, progsData] = await Promise.all([
+                obtenerMentores(user.id_usuario),
+                obtenerEmprendedoresSinMentor(user.id_usuario),
+                obtenerEmprendedoresConMentor(user.id_usuario),
+                programaService.obtenerMisProgramas(user.id_usuario)
             ]);
 
             setMentores(mentoresData);
             setEmprendedores(emprendedoresData);
             setEmprendedoresConMentor(conMentorData);
+
+            const mapP: Record<number, string> = {};
+            for (const p of progsData) {
+                mapP[p.id_programa] = p.nombre_programa;
+            }
+            setProgramasMap(mapP);
         } catch (error) {
             console.error('Error al cargar datos:', error);
             toast.error('Error al cargar datos');
@@ -120,6 +130,15 @@ export const AsignacionMentores = () => {
         }
     };
 
+    // Mentor seleccionado y lista de emprendedores filtrados reactivamente por programas compartidos
+    const mentorActual = mentores.find((m) => m.id_usuario === mentorSeleccionado);
+    const emprendedoresFiltrados = mentorActual && mentorActual.programas_ids && mentorActual.programas_ids.length > 0
+        ? emprendedores.filter((emp) => {
+            const empProgs = emp.programas_ids || [];
+            return empProgs.some((pid) => mentorActual.programas_ids!.includes(pid));
+        })
+        : emprendedores;
+
     return (
         <Layout menuItems={ADMIN_MENU_ITEMS} onLogout={logout}>
             <div>
@@ -145,7 +164,10 @@ export const AsignacionMentores = () => {
                             </label>
                             <select
                                 value={mentorSeleccionado}
-                                onChange={(e) => setMentorSeleccionado(e.target.value)}
+                                onChange={(e) => {
+                                    setMentorSeleccionado(e.target.value);
+                                    setEmprendedoresSeleccionados(new Set());
+                                }}
                                 className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal shadow-sm"
                                 disabled={loading || guardando}
                             >
@@ -156,6 +178,21 @@ export const AsignacionMentores = () => {
                                     </option>
                                 ))}
                             </select>
+
+                            {/* Programas del mentor seleccionado */}
+                            {mentorActual && mentorActual.programas_ids && mentorActual.programas_ids.length > 0 && (
+                                <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-[11px] font-bold text-neutral-400">Programas del mentor:</span>
+                                    {mentorActual.programas_ids.map((pid) => (
+                                        <span
+                                            key={pid}
+                                            className="inline-flex items-center px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-secondary-50 text-activa-dark-teal border border-secondary-100"
+                                        >
+                                            {programasMap[pid] || `Programa #${pid}`}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
 
                         {/* Botón Guardar */}
@@ -187,6 +224,11 @@ export const AsignacionMentores = () => {
                         <h2 className="text-base font-extrabold text-neutral-800 tracking-tight">
                             Emprendedores sin Mentor Asignado
                         </h2>
+                        {mentorSeleccionado && (
+                            <span className="ml-auto text-xs text-neutral-400 font-medium">
+                                {emprendedoresFiltrados.length} compatible(s)
+                            </span>
+                        )}
                     </div>
 
                     {loading ? (
@@ -197,13 +239,15 @@ export const AsignacionMentores = () => {
                             </svg>
                             <p className="text-neutral-500 text-sm">Cargando...</p>
                         </div>
-                    ) : emprendedores.length === 0 ? (
+                    ) : emprendedoresFiltrados.length === 0 ? (
                         <div className="text-center py-8 text-neutral-500 text-sm">
-                            No hay emprendedores sin mentor asignado
+                            {mentorSeleccionado
+                                ? 'No hay emprendedores sin mentor disponibles que pertenezcan a los programas de este mentor'
+                                : 'No hay emprendedores sin mentor asignado'}
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {emprendedores.map((emprendedor) => {
+                            {emprendedoresFiltrados.map((emprendedor) => {
                                 const isSelected = emprendedoresSeleccionados.has(emprendedor.id_usuario);
                                 return (
                                     <label
@@ -228,6 +272,19 @@ export const AsignacionMentores = () => {
                                             <div className="text-xs text-neutral-500">
                                                 {emprendedor.email}
                                             </div>
+                                            {/* Badges de programas del emprendedor */}
+                                            {emprendedor.programas_ids && emprendedor.programas_ids.length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                                    {emprendedor.programas_ids.map((pid) => (
+                                                        <span
+                                                            key={pid}
+                                                            className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary-50 text-jci-blue border border-primary-100 shadow-2xs"
+                                                        >
+                                                            {programasMap[pid] || `Programa #${pid}`}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </label>
                                 );

@@ -28,6 +28,37 @@ class AsignarMentoresRequest(BaseModel):
 
 # ==================== ENDPOINTS ====================
 
+def _adjuntar_programas_ids(supabase: Client, usuarios: List[dict]) -> List[dict]:
+    if not usuarios:
+        return []
+    user_ids = [u["id_usuario"] for u in usuarios if "id_usuario" in u]
+    if not user_ids:
+        return usuarios
+    
+    try:
+        up_res = supabase.table("usuario_programa")\
+            .select("id_usuario, id_programa")\
+            .in_("id_usuario", user_ids)\
+            .execute()
+        
+        map_progs = {}
+        for row in (up_res.data or []):
+            uid = str(row["id_usuario"])
+            pid = row["id_programa"]
+            if uid not in map_progs:
+                map_progs[uid] = []
+            map_progs[uid].append(pid)
+            
+        for u in usuarios:
+            uid = str(u.get("id_usuario"))
+            u["programas_ids"] = map_progs.get(uid, [])
+    except Exception:
+        for u in usuarios:
+            u.setdefault("programas_ids", [])
+            
+    return usuarios
+
+
 @router.get("/mentores")
 async def obtener_mentores(admin_id: Optional[str] = Query(None)):
     """
@@ -49,7 +80,8 @@ async def obtener_mentores(admin_id: Optional[str] = Query(None)):
                 query = query.in_("id_usuario", org_users)
         
         response = query.execute()
-        return response.data
+        mentores = response.data or []
+        return _adjuntar_programas_ids(supabase, mentores)
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener mentores: {str(e)}")
@@ -93,7 +125,7 @@ async def obtener_emprendedores_sin_mentor(admin_id: Optional[str] = Query(None)
             if emp["id_usuario"] not in ids_con_mentor
         ]
         
-        return emprendedores_sin_mentor
+        return _adjuntar_programas_ids(supabase, emprendedores_sin_mentor)
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener emprendedores: {str(e)}")
@@ -366,7 +398,28 @@ async def obtener_mis_tareas(user_id: str):
             .order("fecha_asignacion", desc=True)\
             .execute()
         
-        return response.data
+        tareas = response.data or []
+        if not tareas:
+            return []
+
+        nombre_programa = "Programa General"
+        try:
+            prog_res = supabase.table("usuario_programa")\
+                .select("id_programa, programa(nombre)")\
+                .eq("id_usuario", user_id)\
+                .execute()
+
+            if prog_res.data and len(prog_res.data) > 0:
+                first_prog = prog_res.data[0]
+                if isinstance(first_prog.get("programa"), dict) and first_prog["programa"].get("nombre"):
+                    nombre_programa = first_prog["programa"]["nombre"]
+        except Exception:
+            pass
+
+        for t in tareas:
+            t["nombre_programa"] = nombre_programa
+
+        return tareas
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener tareas: {str(e)}")

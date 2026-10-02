@@ -63,7 +63,7 @@ export const HomeAdministrador = () => {
     // Cargar datos del dashboard filtrados por la organización del admin
     useEffect(() => {
         const fetchDashboard = async () => {
-            if (!user?.id_usuario) return;
+            if (!user?.id_usuario || showProgramModal) return;
             try {
                 setLoading(true);
                 const data = await adminService.getAdminDashboard(user.id_usuario);
@@ -78,7 +78,7 @@ export const HomeAdministrador = () => {
         };
 
         fetchDashboard();
-    }, [user?.id_usuario]);
+    }, [user?.id_usuario, showProgramModal]);
 
     // Datos para el gráfico de barras
     const chartData = dashboardData ? {
@@ -148,6 +148,41 @@ export const HomeAdministrador = () => {
             }
         }
     };
+
+    if (showProgramModal) {
+        return (
+            <Layout menuItems={ADMIN_MENU_ITEMS} onLogout={logout}>
+                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
+                    <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center text-jci-blue mb-4 border border-primary-100 shadow-2xs">
+                        <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                    </div>
+                    <h2 className="text-xl font-bold text-neutral-800 mb-2">Vinculación a Organización Requerida</h2>
+                    <p className="text-sm text-neutral-500 max-w-md mb-6">
+                        Para gestionar la plataforma como Administrador, debes ingresar el código de un programa perteneciente a tu organización.
+                    </p>
+                    <button
+                        onClick={() => setShowProgramModal(true)}
+                        className="px-5 py-2.5 bg-jci-blue hover:bg-primary-600 text-white rounded-xl font-semibold shadow-sm transition-colors"
+                    >
+                        Ingresar Código de Organización
+                    </button>
+                </div>
+                {user?.id_usuario && (
+                    <CodigoProgramaModal
+                        isOpen={true}
+                        userId={user.id_usuario}
+                        isDismissable={false}
+                        onSuccess={() => {
+                            setShowProgramModal(false);
+                            window.location.reload();
+                        }}
+                    />
+                )}
+            </Layout>
+        );
+    }
 
     if (loading) {
         return (

@@ -39,7 +39,7 @@ class MentorService:
             if emprendedores_ids:
                 if id_programa:
                     up_res = self.supabase.table("usuario_programa") \
-                        .select("id_usuario") \
+                        .select("id_usuario, id_programa") \
                         .eq("id_programa", id_programa) \
                         .in_("id_usuario", emprendedores_ids) \
                         .execute()
@@ -81,7 +81,7 @@ class MentorService:
                 .execute()
             
             emprendedores_habilitados = sum(
-                1 for u in usuarios_response.data if u.get("habilitado_diag", False)
+                1 for u in (usuarios_response.data or []) if u.get("habilitado_diag", False)
             )
             
             # 3. Obtener diagnósticos de los emprendedores
@@ -91,7 +91,7 @@ class MentorService:
                 .not_.is_("resultado", "null") \
                 .execute()
             
-            diagnosticos_data = diagnosticos_response.data
+            diagnosticos_data = diagnosticos_response.data or []
             
             # Agrupar por id_usuario y mantener solo el más reciente
             ultimos_diagnosticos_map = {}

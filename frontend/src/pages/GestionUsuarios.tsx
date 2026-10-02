@@ -9,6 +9,7 @@ import { userService } from '../services/userService';
 import { User } from '../types/user';
 import { EditUserModal } from '../components/admin/EditUserModal';
 import { ADMIN_MENU_ITEMS } from '../constants/adminMenu';
+import toast from 'react-hot-toast';
 
 
 export const GestionUsuarios = () => {
@@ -18,6 +19,7 @@ export const GestionUsuarios = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [togglingId, setTogglingId] = useState<string | null>(null);
 
     // Filter states
     const [showFilters, setShowFilters] = useState(false);
@@ -69,6 +71,42 @@ export const GestionUsuarios = () => {
         setEditingUser(user);
     };
 
+    // Conmutar estado de activación con actualización optimista (RF-11, RF-16)
+    const handleToggleStatus = async (targetUser: User) => {
+        const previousState = targetUser.estado;
+        const newState = !previousState;
+
+        // Actualización optimista inmediata
+        setUsers(prevUsers =>
+            prevUsers.map(u =>
+                u.id_usuario === targetUser.id_usuario ? { ...u, estado: newState } : u
+            )
+        );
+        setTogglingId(targetUser.id_usuario);
+
+        try {
+            const res = await userService.toggleUserStatus(targetUser.id_usuario);
+            const confirmedState = res.estado;
+            // Sincronizar con la respuesta del servidor
+            setUsers(prevUsers =>
+                prevUsers.map(u =>
+                    u.id_usuario === targetUser.id_usuario ? { ...u, estado: confirmedState } : u
+                )
+            );
+            toast.success(confirmedState ? 'Usuario activado' : 'Usuario desactivado');
+        } catch (err: any) {
+            // Revertir estado previo si la llamada falla
+            setUsers(prevUsers =>
+                prevUsers.map(u =>
+                    u.id_usuario === targetUser.id_usuario ? { ...u, estado: previousState } : u
+                )
+            );
+            toast.error(err.message || 'Error al cambiar el estado del usuario');
+        } finally {
+            setTogglingId(null);
+        }
+    };
+
     // Handle update user role, permissions and status
     const handleUpdateUser = async (idRol: number, habilitadoDiag: boolean, estado: boolean) => {
         if (!editingUser) return;
@@ -76,14 +114,12 @@ export const GestionUsuarios = () => {
         try {
             await userService.updateUserRolePermissions(editingUser.id_usuario, idRol, habilitadoDiag, estado);
             setEditingUser(null);
+            toast.success('Usuario actualizado correctamente');
             await fetchUsers(); // Refresh list
         } catch (error: any) {
-            alert(error.message || 'Error al actualizar usuario');
+            toast.error(error.message || 'Error al actualizar usuario');
         }
     };
-
-
-
 
     // Función para obtener el color del badge según el rol
     const getRoleBadgeColor = (rol: string) => {
@@ -94,18 +130,6 @@ export const GestionUsuarios = () => {
                 return 'bg-purple-500/20 text-purple-400 border border-purple-200';
             case 'Administrador':
                 return 'bg-red-500/20 text-red-400 border border-red-500/30';
-            default:
-                return 'bg-gray-500/20 text-neutral-600 border border-gray-500/30';
-        }
-    };
-
-    // Función para obtener el color del badge según el estado
-    const getStatusBadgeColor = (estado: boolean) => {
-        switch (estado) {
-            case true:
-                return 'bg-green-500/20 text-green-400 border border-green-200';
-            case false:
-                return 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30';
             default:
                 return 'bg-gray-500/20 text-neutral-600 border border-gray-500/30';
         }
@@ -288,9 +312,32 @@ export const GestionUsuarios = () => {
                                                 </span>
                                             </td>
                                             <td className="px-6 py-4">
-                                                <span className={`inline-block px-3 py-1 rounded-md text-xs font-semibold ${getStatusBadgeColor(user.estado)}`}>
-                                                    {user.estado ? 'Activo' : 'Inactivo'}
-                                                </span>
+                                                <div className="flex items-center gap-2.5">
+                                                    <button
+                                                        type="button"
+                                                        role="switch"
+                                                        aria-checked={user.estado}
+                                                        aria-label={user.estado ? 'Desactivar usuario' : 'Activar usuario'}
+                                                        disabled={togglingId === user.id_usuario}
+                                                        onClick={() => handleToggleStatus(user)}
+                                                        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:ring-offset-2 ${
+                                                            user.estado ? 'bg-activa-teal' : 'bg-slate-300'
+                                                        } ${togglingId === user.id_usuario ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                    >
+                                                        <span className="sr-only">
+                                                            {user.estado ? 'Usuario activo' : 'Usuario inactivo'}
+                                                        </span>
+                                                        <span
+                                                            aria-hidden="true"
+                                                            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                                                                user.estado ? 'translate-x-5' : 'translate-x-0'
+                                                            }`}
+                                                        />
+                                                    </button>
+                                                    <span className={`text-xs font-semibold ${user.estado ? 'text-activa-teal' : 'text-neutral-400'}`}>
+                                                        {user.estado ? 'Activo' : 'Inactivo'}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <div className="flex items-center gap-2">

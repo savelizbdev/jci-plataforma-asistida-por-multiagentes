@@ -12,6 +12,7 @@ export interface Tarea {
     fecha_asignacion: string;
     fecha_expiracion: string | null;
     estado: string;
+    nombre_programa?: string;
 }
 
 export interface TareaCreate {

@@ -9,6 +9,7 @@ export interface Usuario {
     apellido: string | null;
     email: string;
     nombre_emprendimiento?: string | null;
+    programas_ids?: number[];
 }
 
 export interface AsignarMentoresRequest {
