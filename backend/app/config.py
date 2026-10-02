@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # Environment
     ENVIRONMENT: str = "development"
     
+    # Email Configuration (SMTP Gmail)
+    EMAIL_SENDER: str = ""
+    EMAIL_PASSWORD: str = ""
+    
     @property
     def cors_origins(self) -> List[str]:
         """Convierte la cadena de orígenes permitidos en una lista"""
@@ -32,6 +36,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"
 
 
 # Instancia global de configuración

@@ -4,8 +4,19 @@
 import api from './api';
 import type { AdminDashboardData } from '../types/admin';
 
+export interface ErrorDetalle {
+    id_usuario: string;
+    email: string;
+    motivo: string;
+}
+
 export interface SeguimientoResult {
     mensaje: string;
+    total_tareas?: number;
+    total_emprendedores?: number;
+    enviados_exitosos?: number;
+    fallidos?: number;
+    errores_detalle?: ErrorDetalle[];
     resumen_agente: string;
 }
 
