@@ -51,4 +51,49 @@ describe('Fase 4: Frontend — Control Switch en Gestión de Usuarios (RF-11, RF
         assert.equal(getToastMessage(true), 'Usuario activado');
         assert.equal(getToastMessage(false), 'Usuario desactivado');
     });
+
+    test('Buscador de usuarios: permite filtrar por email, nombre o apellido', () => {
+        const users = [
+            { id_usuario: '1', nombre: 'Juan', apellido: 'Pérez', email: 'juan@empresa.com', rol: 'Emprendedor', estado: true },
+            { id_usuario: '2', nombre: 'María', apellido: 'Gómez', email: 'maria@gmail.com', rol: 'Mentor', estado: true },
+            { id_usuario: '3', nombre: 'Carlos', apellido: 'López', email: 'clopez@hotmail.com', rol: 'Emprendedor', estado: false }
+        ];
+
+        const filterFn = (usersList, searchTerm) => {
+            const term = searchTerm.toLowerCase().trim();
+            return usersList.filter(user => {
+                const fullName = `${user.nombre || ''} ${user.apellido || ''}`.toLowerCase();
+                return !term ||
+                    user.email.toLowerCase().includes(term) ||
+                    fullName.includes(term) ||
+                    (user.nombre && user.nombre.toLowerCase().includes(term)) ||
+                    (user.apellido && user.apellido.toLowerCase().includes(term));
+            });
+        };
+
+        // Búsqueda por email
+        const resEmail = filterFn(users, 'maria@gmail.com');
+        assert.equal(resEmail.length, 1);
+        assert.equal(resEmail[0].nombre, 'María');
+
+        // Búsqueda por nombre
+        const resNombre = filterFn(users, 'Juan');
+        assert.equal(resNombre.length, 1);
+        assert.equal(resNombre[0].email, 'juan@empresa.com');
+
+        // Búsqueda por apellido
+        const resApellido = filterFn(users, 'López');
+        assert.equal(resApellido.length, 1);
+        assert.equal(resApellido[0].nombre, 'Carlos');
+
+        // Búsqueda por nombre completo
+        const resFullName = filterFn(users, 'Juan Pérez');
+        assert.equal(resFullName.length, 1);
+
+        // Búsqueda insensible a mayúsculas
+        const resCase = filterFn(users, 'gómez');
+        assert.equal(resCase.length, 1);
+        assert.equal(resCase[0].id_usuario, '2');
+    });
 });
+

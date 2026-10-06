@@ -46,9 +46,16 @@ export const GestionUsuarios = () => {
         }
     };
 
-    // Filter users by email search term, role, and status
+    // Filter users by search term (name, apellido, email), role, and status
     const filteredUsers = users.filter(user => {
-        const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase());
+        const term = searchTerm.toLowerCase().trim();
+        const fullName = `${user.nombre || ''} ${user.apellido || ''}`.toLowerCase();
+        const matchesSearch = !term ||
+            user.email.toLowerCase().includes(term) ||
+            fullName.includes(term) ||
+            (user.nombre && user.nombre.toLowerCase().includes(term)) ||
+            (user.apellido && user.apellido.toLowerCase().includes(term));
+
         const matchesRole = filterRole === 'Todos' || user.rol === filterRole;
         const matchesStatus = filterStatus === 'Todos' ||
             (filterStatus === 'Activo' && user.estado) ||
@@ -168,8 +175,8 @@ export const GestionUsuarios = () => {
                             />
                         </svg>
                         <input
-                            type="email"
-                            placeholder="Buscar por email"
+                            type="text"
+                            placeholder="Buscar por nombre o email..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-neutral-900 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-activa-teal/50 focus:border-activa-teal transition-colors shadow-sm"
@@ -279,7 +286,7 @@ export const GestionUsuarios = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                 </svg>
                                 <p className="text-neutral-600">
-                                    {searchTerm ? 'No se encontraron usuarios con ese email' : 'No hay usuarios registrados'}
+                                    {searchTerm ? 'No se encontraron usuarios que coincidan con la búsqueda' : 'No hay usuarios registrados'}
                                 </p>
                             </div>
                         </div>
