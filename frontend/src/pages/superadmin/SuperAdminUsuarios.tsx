@@ -18,6 +18,7 @@ export const SuperAdminUsuarios: React.FC = () => {
     const { selectedOrgId, selectedProgId, programas } = useSuperAdminFilters();
 
     const [activeTab, setActiveTab] = useState<'matriculados' | 'sin_programa'>('matriculados');
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Estado para usuarios matriculados
     const [usuarios, setUsuarios] = useState<SuperAdminUsuario[]>([]);
@@ -49,7 +50,7 @@ export const SuperAdminUsuarios: React.FC = () => {
         setLoadingMatriculados(true);
         try {
             const progId = selectedProgId === 'todos' ? null : selectedProgId;
-            const res = await superAdminService.obtenerUsuariosPaginados(selectedOrgId, progId, pageMatriculados, 15);
+            const res = await superAdminService.obtenerUsuariosPaginados(selectedOrgId, progId, pageMatriculados, 15, searchTerm);
             setUsuarios(res.items);
             setTotalMatriculados(res.total);
             setTotalPagesMatriculados(res.total_pages);
@@ -58,14 +59,14 @@ export const SuperAdminUsuarios: React.FC = () => {
         } finally {
             setLoadingMatriculados(false);
         }
-    }, [selectedOrgId, selectedProgId, pageMatriculados]);
+    }, [selectedOrgId, selectedProgId, pageMatriculados, searchTerm]);
 
     // Cargar usuarios sin programa
     const fetchUsuariosSinPrograma = useCallback(async () => {
         if (!selectedOrgId) return;
         setLoadingSinProg(true);
         try {
-            const res = await superAdminService.obtenerUsuariosSinPrograma(selectedOrgId, pageSinProg, 15);
+            const res = await superAdminService.obtenerUsuariosSinPrograma(selectedOrgId, pageSinProg, 15, searchTerm);
             setUsuariosSinProg(res.items);
             setTotalSinProg(res.total);
             setTotalPagesSinProg(res.total_pages);
@@ -74,7 +75,7 @@ export const SuperAdminUsuarios: React.FC = () => {
         } finally {
             setLoadingSinProg(false);
         }
-    }, [selectedOrgId, pageSinProg]);
+    }, [selectedOrgId, pageSinProg, searchTerm]);
 
     useEffect(() => {
         if (selectedOrgId) {
@@ -198,6 +199,49 @@ export const SuperAdminUsuarios: React.FC = () => {
                             </button>
                         </div>
 
+                        {/* Buscador de usuarios */}
+                        <div className="mb-4 max-w-md">
+                            <div className="relative">
+                                <svg
+                                    className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                    />
+                                </svg>
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nombre o correo..."
+                                    value={searchTerm}
+                                    onChange={(e) => {
+                                        setSearchTerm(e.target.value);
+                                        setPageMatriculados(1);
+                                        setPageSinProg(1);
+                                    }}
+                                    className="w-full pl-10 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-600 transition-colors shadow-sm"
+                                />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            setPageMatriculados(1);
+                                            setPageSinProg(1);
+                                        }}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-semibold"
+                                    >
+                                        ✕
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
                         {/* Pestaña: Usuarios Matriculados */}
                         {activeTab === 'matriculados' && (
                             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -205,7 +249,9 @@ export const SuperAdminUsuarios: React.FC = () => {
                                     <div className="p-12 text-center text-gray-500">Cargando usuarios matriculados...</div>
                                 ) : usuarios.length === 0 ? (
                                     <div className="p-12 text-center text-gray-500">
-                                        No hay usuarios matriculados registrados para el filtro seleccionado.
+                                        {searchTerm
+                                            ? 'No se encontraron usuarios matriculados que coincidan con la búsqueda.'
+                                            : 'No hay usuarios matriculados registrados para el filtro seleccionado.'}
                                     </div>
                                 ) : (
                                     <div className="overflow-x-auto">
@@ -306,7 +352,9 @@ export const SuperAdminUsuarios: React.FC = () => {
                                     <div className="p-12 text-center text-gray-500">Cargando usuarios sin programa...</div>
                                 ) : usuariosSinProg.length === 0 ? (
                                     <div className="p-12 text-center text-gray-500">
-                                        No hay usuarios pendientes de matrícula en esta organización.
+                                        {searchTerm
+                                            ? 'No se encontraron usuarios sin programa que coincidan con la búsqueda.'
+                                            : 'No hay usuarios pendientes de matrícula en esta organización.'}
                                     </div>
                                 ) : (
                                     <div className="overflow-x-auto">

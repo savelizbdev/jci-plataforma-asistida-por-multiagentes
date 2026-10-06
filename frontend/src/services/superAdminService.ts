@@ -31,7 +31,8 @@ export const superAdminService = {
         idOrganizacion: number,
         idPrograma?: number | null,
         page: number = 1,
-        limit: number = 15
+        limit: number = 15,
+        q?: string
     ): Promise<PaginatedResponse<SuperAdminUsuario>> {
         const params: Record<string, any> = {
             id_organizacion: idOrganizacion,
@@ -41,6 +42,9 @@ export const superAdminService = {
         if (idPrograma !== undefined && idPrograma !== null) {
             params.id_programa = idPrograma;
         }
+        if (q && q.trim()) {
+            params.q = q.trim();
+        }
         const response = await api.get<PaginatedResponse<SuperAdminUsuario>>('/api/superadmin/usuarios', { params });
         return response.data;
     },
@@ -48,10 +52,15 @@ export const superAdminService = {
     async obtenerUsuariosSinPrograma(
         idOrganizacion: number,
         page: number = 1,
-        limit: number = 15
+        limit: number = 15,
+        q?: string
     ): Promise<PaginatedResponse<SuperAdminUsuario>> {
+        const params: Record<string, any> = { id_organizacion: idOrganizacion, page, limit };
+        if (q && q.trim()) {
+            params.q = q.trim();
+        }
         const response = await api.get<PaginatedResponse<SuperAdminUsuario>>('/api/superadmin/usuarios-sin-programa', {
-            params: { id_organizacion: idOrganizacion, page, limit },
+            params,
         });
         return response.data;
     },

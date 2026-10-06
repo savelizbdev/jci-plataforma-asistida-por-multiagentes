@@ -117,6 +117,48 @@ class TestSuperAdminService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(progs), 2)
 
     @patch("app.services.superadmin_service.get_supabase_client")
+    async def test_obtener_usuarios_con_busqueda_q(self, mock_client):
+        """RF-04: Búsqueda de usuarios matriculados por nombre, apellido o email"""
+        from app.services.superadmin_service import superadmin_service
+
+        mock_supabase = MagicMock()
+        mock_client.return_value = mock_supabase
+
+        def table_side_effect(name):
+            mock_tbl = MagicMock()
+            if name == "programa":
+                mock_tbl.select.return_value.eq.return_value.eq.return_value.execute.return_value.data = [
+                    {"id_programa": 1, "nombre": "Prog 1"}
+                ]
+            elif name == "usuario_programa":
+                mock_tbl.select.return_value.in_.return_value.execute.return_value.data = [
+                    {"id_usuario": "u1", "id_programa": 1},
+                    {"id_usuario": "u2", "id_programa": 1},
+                ]
+            elif name == "usuario":
+                mock_tbl.select.return_value.in_.return_value.execute.return_value.data = [
+                    {"id_usuario": "u1", "nombre": "Ana", "apellido": "Lopez", "email": "ana@test.com", "id_rol": 2, "estado": True},
+                    {"id_usuario": "u2", "nombre": "Carlos", "apellido": "Gomez", "email": "carlos@test.com", "id_rol": 3, "estado": True},
+                ]
+            return mock_tbl
+
+        mock_supabase.table.side_effect = table_side_effect
+
+        # Buscar por nombre "Ana"
+        resp_ana = await superadmin_service.obtener_usuarios_paginados(1, None, 1, 15, q="Ana")
+        self.assertEqual(resp_ana.total, 1)
+        self.assertEqual(resp_ana.items[0].nombre, "Ana")
+
+        # Buscar por apellido "Gomez"
+        resp_gomez = await superadmin_service.obtener_usuarios_paginados(1, None, 1, 15, q="Gomez")
+        self.assertEqual(resp_gomez.total, 1)
+        self.assertEqual(resp_gomez.items[0].correo, "carlos@test.com")
+
+        # Buscar por correo
+        resp_mail = await superadmin_service.obtener_usuarios_paginados(1, None, 1, 15, q="carlos@test.com")
+        self.assertEqual(resp_mail.total, 1)
+
+    @patch("app.services.superadmin_service.get_supabase_client")
     async def test_cambiar_rol_usuario(self, mock_client):
         """RF-04.2: Cambiar rol de usuario en base de datos"""
         from app.services.superadmin_service import superadmin_service

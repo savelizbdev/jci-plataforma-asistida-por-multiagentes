@@ -79,6 +79,7 @@ async def obtener_usuarios(
     id_programa: Optional[int] = Query(None, description="ID del programa (opcional)"),
     page: int = Query(1, ge=1, description="Número de página"),
     limit: int = Query(15, ge=1, le=100, description="Registros por página"),
+    q: Optional[str] = Query(None, description="Término de búsqueda por nombre, apellido o correo"),
     admin: Dict[str, Any] = Depends(get_current_superadmin),
 ):
     """
@@ -89,6 +90,7 @@ async def obtener_usuarios(
         id_programa=id_programa,
         page=page,
         limit=limit,
+        q=q,
     )
 
 
@@ -97,6 +99,7 @@ async def obtener_usuarios_sin_programa(
     id_organizacion: int = Query(..., description="ID de la organización"),
     page: int = Query(1, ge=1, description="Número de página"),
     limit: int = Query(15, ge=1, le=100, description="Registros por página"),
+    q: Optional[str] = Query(None, description="Término de búsqueda por nombre, apellido o correo"),
     admin: Dict[str, Any] = Depends(get_current_superadmin),
 ):
     """
@@ -106,6 +109,7 @@ async def obtener_usuarios_sin_programa(
         id_organizacion=id_organizacion,
         page=page,
         limit=limit,
+        q=q,
     )
 
 

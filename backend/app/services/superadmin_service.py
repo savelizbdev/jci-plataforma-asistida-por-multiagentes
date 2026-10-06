@@ -132,9 +132,11 @@ class SuperAdminService:
         id_programa: Optional[int] = None,
         page: int = 1,
         limit: int = 15,
+        q: Optional[str] = None,
     ) -> PaginatedResponse[UsuarioSuperAdminItem]:
         """
-        RF-04.3, RF-04.6, RF-04.7: Retorna usuarios matriculados paginados en backend (15 por página).
+        RF-04.3, RF-04.6, RF-04.7: Retorna usuarios matriculados paginados en backend (15 por página),
+        con soporte opcional de búsqueda por nombre, apellido o correo.
         """
         try:
             # 1. Obtener programas activos de la organización
@@ -167,29 +169,41 @@ class SuperAdminService:
                 user_progs_map.setdefault(uid, []).append(row["id_programa"])
 
             unique_user_ids = sorted(list(user_progs_map.keys()))
-            total = len(unique_user_ids)
+            if not unique_user_ids:
+                return PaginatedResponse(items=[], total=0, page=page, limit=limit)
+
+            # 3. Obtener datos de los usuarios
+            users_res = self.supabase.table("usuario")\
+                .select("id_usuario, nombre, apellido, email, id_rol, estado")\
+                .in_("id_usuario", unique_user_ids)\
+                .execute()
+
+            users_list = users_res.data or []
+
+            # 4. Si hay término de búsqueda, filtrar por nombre, apellido o correo
+            if q and q.strip():
+                term = q.strip().lower()
+                filtered = []
+                for u in users_list:
+                    nom = (u.get("nombre") or "").lower()
+                    ape = (u.get("apellido") or "").lower()
+                    full = f"{nom} {ape}".strip()
+                    mail = (u.get("email") or "").lower()
+                    if term in mail or term in full or term in nom or term in ape:
+                        filtered.append(u)
+                users_list = filtered
+
+            total = len(users_list)
             if total == 0:
                 return PaginatedResponse(items=[], total=0, page=page, limit=limit)
 
-            # 3. Aplicar paginación
+            # 5. Aplicar paginación
             offset = (page - 1) * limit
-            paged_user_ids = unique_user_ids[offset : offset + limit]
-            if not paged_user_ids:
-                return PaginatedResponse(items=[], total=total, page=page, limit=limit)
-
-            # 4. Obtener datos de los usuarios
-            users_res = self.supabase.table("usuario")\
-                .select("id_usuario, nombre, apellido, email, id_rol, estado")\
-                .in_("id_usuario", paged_user_ids)\
-                .execute()
-
-            users_map = {str(u["id_usuario"]): u for u in (users_res.data or [])}
+            paged_users = users_list[offset : offset + limit]
 
             items: List[UsuarioSuperAdminItem] = []
-            for uid in paged_user_ids:
-                u = users_map.get(uid)
-                if not u:
-                    continue
+            for u in paged_users:
+                uid = str(u["id_usuario"])
                 p_ids = user_progs_map.get(uid, [])
                 p_names = [progs_map[pid] for pid in p_ids if pid in progs_map]
                 rol_id = u.get("id_rol", 2)
@@ -216,9 +230,11 @@ class SuperAdminService:
         id_organizacion: int,
         page: int = 1,
         limit: int = 15,
+        q: Optional[str] = None,
     ) -> PaginatedResponse[UsuarioSuperAdminItem]:
         """
-        RF-04.4, RF-04.7: Retorna usuarios del sistema que no están inscritos en ningún programa.
+        RF-04.4, RF-04.7: Retorna usuarios del sistema que no están inscritos en ningún programa,
+        con soporte opcional de búsqueda por nombre, apellido o correo.
         """
         try:
             # 1. Obtener todos los IDs de usuario que están inscritos en algún programa
@@ -234,6 +250,19 @@ class SuperAdminService:
             
             all_users = users_res.data or []
             sin_programa = [u for u in all_users if str(u["id_usuario"]) not in enrolled_ids]
+
+            # 3. Si hay término de búsqueda, filtrar
+            if q and q.strip():
+                term = q.strip().lower()
+                filtered = []
+                for u in sin_programa:
+                    nom = (u.get("nombre") or "").lower()
+                    ape = (u.get("apellido") or "").lower()
+                    full = f"{nom} {ape}".strip()
+                    mail = (u.get("email") or "").lower()
+                    if term in mail or term in full or term in nom or term in ape:
+                        filtered.append(u)
+                sin_programa = filtered
             
             total = len(sin_programa)
             offset = (page - 1) * limit
