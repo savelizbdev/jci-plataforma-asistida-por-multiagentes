@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { Layout } from '../components/common/Layout';
-import { MenuItem } from '../components/common/Sidebar';
 import { programaService } from '../services/programaService';
 import { OrganizacionItem } from '../types/programa';
 import toast, { Toaster } from 'react-hot-toast';
+import { SUPERADMIN_MENU_ITEMS } from '../constants/superAdminMenu';
 
-const menuItems: MenuItem[] = [
-    { label: 'Organizaciones y Programas', path: '/superadmin/home' },
-];
+const menuItems = SUPERADMIN_MENU_ITEMS;
 
 export const SuperAdminHome = () => {
     const { logout } = useAuth();

@@ -17,6 +17,7 @@ from app.routers import (
     reporte_router,
     seguimiento_router,
     programas_router,
+    superadmin_router,
 )
 
 
@@ -51,6 +52,7 @@ app.include_router(tarea_router)
 app.include_router(reporte_router)
 app.include_router(seguimiento_router)
 app.include_router(programas_router)
+app.include_router(superadmin_router)
 
 
 @app.get("/")

@@ -13,6 +13,7 @@ from app.routers.tarea import router as tarea_router
 from app.routers.reporte import router as reporte_router
 from app.routers.seguimiento import router as seguimiento_router
 from app.routers.programas import router as programas_router
+from app.routers.superadmin import router as superadmin_router
 
 __all__ = [
     "auth_router",
@@ -26,4 +27,5 @@ __all__ = [
     "reporte_router",
     "seguimiento_router",
     "programas_router",
+    "superadmin_router",
 ]

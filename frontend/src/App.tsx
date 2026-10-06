@@ -22,6 +22,11 @@ import { GenerarReportesAdmin } from './pages/GenerarReportesAdmin';
 import { SeguimientoTareas } from './pages/SeguimientoTareas';
 import { MisProgramas } from './pages/MisProgramas';
 import { SuperAdminHome } from './pages/SuperAdminHome';
+import { SuperAdminFilterProvider } from './context/SuperAdminFilterContext';
+import { SuperAdminUsuarios } from './pages/superadmin/SuperAdminUsuarios';
+import { SuperAdminAsignarMentores } from './pages/superadmin/SuperAdminAsignarMentores';
+import { SuperAdminReportes } from './pages/superadmin/SuperAdminReportes';
+import { SuperAdminDiagnosticos } from './pages/superadmin/SuperAdminDiagnosticos';
 
 function AppRoutes() {
     const { user, loading } = useAuth();
@@ -165,6 +170,38 @@ function AppRoutes() {
                     </ProtectedRoute>
                 }
             />
+            <Route
+                path="/superadmin/usuarios"
+                element={
+                    <ProtectedRoute allowedRoles={[4]}>
+                        <SuperAdminUsuarios />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/superadmin/asignar-mentores"
+                element={
+                    <ProtectedRoute allowedRoles={[4]}>
+                        <SuperAdminAsignarMentores />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/superadmin/reportes"
+                element={
+                    <ProtectedRoute allowedRoles={[4]}>
+                        <SuperAdminReportes />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/superadmin/diagnosticos"
+                element={
+                    <ProtectedRoute allowedRoles={[4]}>
+                        <SuperAdminDiagnosticos />
+                    </ProtectedRoute>
+                }
+            />
 
             {/* Ruta por defecto */}
             <Route path="/" element={<Navigate to={getHomeRoute()} replace />} />
@@ -177,7 +214,9 @@ function App() {
     return (
         <BrowserRouter>
             <AuthProvider>
-                <AppRoutes />
+                <SuperAdminFilterProvider>
+                    <AppRoutes />
+                </SuperAdminFilterProvider>
             </AuthProvider>
         </BrowserRouter>
     );

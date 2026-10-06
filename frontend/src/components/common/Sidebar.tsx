@@ -29,7 +29,7 @@ export const Sidebar = memo(({ menuItems, onLogout, isOpen, onClose }: SidebarPr
 
     // Helper para obtener el icono según la ruta
     const getIconForPath = (path: string, isActive: boolean) => {
-        const iconClasses = `w-5 h-5 mr-3 transition-colors duration-300 ${isActive ? 'text-white' : 'text-white/50 group-hover:text-white/90'}`;
+        const iconClasses = `w-5 h-5 mr-3 shrink-0 transition-colors duration-300 ${isActive ? 'text-white' : 'text-white/50 group-hover:text-white/90'}`;
 
         switch (path) {
             case '/admin/home':
@@ -41,12 +41,14 @@ export const Sidebar = memo(({ menuItems, onLogout, isOpen, onClose }: SidebarPr
                     </svg>
                 );
             case '/admin/usuarios':
+            case '/superadmin/usuarios':
                 return (
                     <svg className={iconClasses} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={isActive ? 2.5 : 2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                 );
             case '/admin/asignar-mentores':
+            case '/superadmin/asignar-mentores':
                 return (
                     <svg className={iconClasses} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={isActive ? 2.5 : 2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
@@ -54,6 +56,7 @@ export const Sidebar = memo(({ menuItems, onLogout, isOpen, onClose }: SidebarPr
                 );
             case '/admin/reportes':
             case '/mentor/reportes':
+            case '/superadmin/reportes':
                 return (
                     <svg className={iconClasses} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={isActive ? 2.5 : 2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -66,6 +69,7 @@ export const Sidebar = memo(({ menuItems, onLogout, isOpen, onClose }: SidebarPr
                     </svg>
                 );
             case '/mentor/diagnosticos':
+            case '/superadmin/diagnosticos':
             case '/emprendedor/diagnostico-ia':
                 return (
                     <svg className={iconClasses} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,18 +145,18 @@ export const Sidebar = memo(({ menuItems, onLogout, isOpen, onClose }: SidebarPr
                                     <Link
                                         to={item.path}
                                         onClick={handleNavClick}
-                                        className={`group flex items-center px-6 py-3.5 text-[14.5px] font-medium transition-all duration-300 border-l-4 ${isActive
+                                        className={`group flex items-center px-6 py-3 text-[14.5px] font-medium transition-all duration-300 border-l-4 ${isActive
                                             ? 'bg-white/10 border-white text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
                                             : 'border-transparent text-white/50 hover:bg-white/5 hover:text-white/90'
                                             }`}
                                     >
                                         {/* Dynamic Icon */}
                                         {item.icon ? (
-                                            <span dangerouslySetInnerHTML={{ __html: item.icon }} className="mr-3" />
+                                            <span dangerouslySetInnerHTML={{ __html: item.icon }} className="mr-3 shrink-0" />
                                         ) : (
                                             getIconForPath(item.path, isActive)
                                         )}
-                                        <span className="truncate">{item.label}</span>
+                                        <span className="break-words leading-snug">{item.label}</span>
                                     </Link>
                                 </li>
                             );
