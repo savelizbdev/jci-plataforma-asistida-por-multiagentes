@@ -16,12 +16,12 @@ import {
 
 export const superAdminService = {
     async listarOrganizacionesActivas(): Promise<OrganizacionSimple[]> {
-        const response = await api.get<OrganizacionSimple[]>('/api/superadmin/organizaciones-activas');
+        const response = await api.get<OrganizacionSimple[]>('/superadmin/organizaciones-activas');
         return response.data;
     },
 
     async listarProgramasActivos(idOrganizacion: number): Promise<ProgramaSimple[]> {
-        const response = await api.get<ProgramaSimple[]>('/api/superadmin/programas-activos', {
+        const response = await api.get<ProgramaSimple[]>('/superadmin/programas-activos', {
             params: { id_organizacion: idOrganizacion },
         });
         return response.data;
@@ -45,7 +45,7 @@ export const superAdminService = {
         if (q && q.trim()) {
             params.q = q.trim();
         }
-        const response = await api.get<PaginatedResponse<SuperAdminUsuario>>('/api/superadmin/usuarios', { params });
+        const response = await api.get<PaginatedResponse<SuperAdminUsuario>>('/superadmin/usuarios', { params });
         return response.data;
     },
 
@@ -59,7 +59,7 @@ export const superAdminService = {
         if (q && q.trim()) {
             params.q = q.trim();
         }
-        const response = await api.get<PaginatedResponse<SuperAdminUsuario>>('/api/superadmin/usuarios-sin-programa', {
+        const response = await api.get<PaginatedResponse<SuperAdminUsuario>>('/superadmin/usuarios-sin-programa', {
             params,
         });
         return response.data;
@@ -67,19 +67,19 @@ export const superAdminService = {
 
     async cambiarRol(idUsuario: string, nuevoRol: number): Promise<{ success: boolean; message: string }> {
         const payload: CambiarRolRequest = { id_usuario: idUsuario, nuevo_rol: nuevoRol };
-        const response = await api.put<{ success: boolean; message: string }>('/api/superadmin/cambiar-rol', payload);
+        const response = await api.put<{ success: boolean; message: string }>('/superadmin/cambiar-rol', payload);
         return response.data;
     },
 
     async cambiarEstadoUsuario(idUsuario: string, activo: boolean): Promise<{ success: boolean; message: string }> {
         const payload: CambiarEstadoUsuarioRequest = { id_usuario: idUsuario, activo };
-        const response = await api.put<{ success: boolean; message: string }>('/api/superadmin/cambiar-estado-usuario', payload);
+        const response = await api.put<{ success: boolean; message: string }>('/superadmin/cambiar-estado-usuario', payload);
         return response.data;
     },
 
     async matricularUsuario(idUsuario: string, idPrograma: number): Promise<{ success: boolean; message: string }> {
         const payload: MatricularUsuarioRequest = { id_usuario: idUsuario, id_programa: idPrograma };
-        const response = await api.post<{ success: boolean; message: string }>('/api/superadmin/matricular-usuario', payload);
+        const response = await api.post<{ success: boolean; message: string }>('/superadmin/matricular-usuario', payload);
         return response.data;
     },
 
@@ -101,12 +101,12 @@ export const superAdminService = {
         if (idPrograma !== undefined && idPrograma !== null) {
             params.id_programa = idPrograma;
         }
-        const response = await api.get<AsignacionesResponse>('/api/superadmin/asignaciones', { params });
+        const response = await api.get<AsignacionesResponse>('/superadmin/asignaciones', { params });
         return response.data;
     },
 
     async asignarMentor(idMentor: string, idEmprendedores: string[]): Promise<{ success: boolean; message: string }> {
-        const response = await api.post<{ success: boolean; message: string }>('/api/superadmin/asignaciones/asignar', {
+        const response = await api.post<{ success: boolean; message: string }>('/superadmin/asignaciones/asignar', {
             id_mentor: idMentor,
             id_emprendedores: idEmprendedores,
         });
@@ -114,7 +114,7 @@ export const superAdminService = {
     },
 
     async desasignarMentor(idEmprendedor: string): Promise<{ success: boolean; message: string }> {
-        const response = await api.post<{ success: boolean; message: string }>('/api/superadmin/asignaciones/desasignar', {
+        const response = await api.post<{ success: boolean; message: string }>('/superadmin/asignaciones/desasignar', {
             id_emprendedor: idEmprendedor,
         });
         return response.data;
@@ -134,7 +134,7 @@ export const superAdminService = {
         if (idPrograma !== undefined && idPrograma !== null) {
             params.id_programa = idPrograma;
         }
-        const response = await api.get<PaginatedResponse<DiagnosticoSupervisionItem>>('/api/superadmin/diagnosticos', { params });
+        const response = await api.get<PaginatedResponse<DiagnosticoSupervisionItem>>('/superadmin/diagnosticos', { params });
         return response.data;
     },
 };

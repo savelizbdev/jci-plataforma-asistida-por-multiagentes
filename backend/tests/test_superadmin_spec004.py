@@ -292,6 +292,31 @@ class TestSuperAdminRouterAuth(unittest.IsolatedAsyncioTestCase):
                 await get_current_superadmin(user_otro)
             self.assertEqual(ctx.exception.status_code, 403)
 
+    @patch("app.routers.superadmin.superadmin_service")
+    def test_matricular_usuario_endpoint_schema_valido(self, mock_service):
+        """RF-04.5: El endpoint POST /superadmin/matricular-usuario acepta payload plano sin clave 'request' anidada"""
+        from fastapi.testclient import TestClient
+        from app.main import app
+
+        from unittest.mock import AsyncMock
+        mock_service.matricular_usuario = AsyncMock(return_value=True)
+        client = TestClient(app)
+        res = client.post(
+            "/superadmin/matricular-usuario",
+            json={"id_usuario": "user-123", "id_programa": 5},
+            headers={"X-User-Role": "4"},
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json(), {"success": True, "message": "Usuario matriculado exitosamente"})
+
+        res_api = client.post(
+            "/api/superadmin/matricular-usuario",
+            json={"id_usuario": "user-123", "id_programa": 5},
+            headers={"X-User-Role": "4"},
+        )
+        self.assertEqual(res_api.status_code, 200)
+        self.assertEqual(res_api.json(), {"success": True, "message": "Usuario matriculado exitosamente"})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -29,6 +29,18 @@ export const SuperAdminDiagnosticos: React.FC = () => {
     const [inspeccionandoItem, setInspeccionandoItem] = useState<DiagnosticoSupervisionItem | null>(null);
     const [descargandoId, setDescargandoId] = useState<string | null>(null);
 
+    const getErrorMessage = (error: any, fallback: string): string => {
+        const detail = error?.response?.data?.detail;
+        if (typeof detail === 'string') return detail;
+        if (Array.isArray(detail) && detail.length > 0) {
+            const first = detail[0];
+            if (typeof first === 'string') return first;
+            if (first && typeof first === 'object' && first.msg) return first.msg;
+        }
+        if (detail && typeof detail === 'object' && detail.msg) return detail.msg;
+        return error?.message || fallback;
+    };
+
     const fetchDiagnosticos = useCallback(async () => {
         if (!selectedOrgId) return;
         setLoading(true);
@@ -39,7 +51,7 @@ export const SuperAdminDiagnosticos: React.FC = () => {
             setTotal(res.total);
             setTotalPages(res.total_pages);
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al cargar diagnósticos');
+            toast.error(getErrorMessage(error, 'Error al cargar diagnósticos'));
         } finally {
             setLoading(false);
         }
@@ -70,7 +82,7 @@ export const SuperAdminDiagnosticos: React.FC = () => {
             document.body.removeChild(a);
             toast.success('Reporte descargado correctamente');
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al descargar reporte');
+            toast.error(getErrorMessage(error, 'Error al descargar reporte'));
         } finally {
             setDescargandoId(null);
         }

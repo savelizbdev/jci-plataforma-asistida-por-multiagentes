@@ -18,11 +18,11 @@ from app.models.superadmin import (
     MatricularUsuarioRequest,
 )
 
-router = APIRouter(prefix="/api/superadmin", tags=["superadmin"])
+router = APIRouter(prefix="/superadmin", tags=["superadmin"])
 
 
 async def get_current_superadmin(
-    user: Optional[Dict[str, Any]] = None,
+    user: Optional[Dict[str, Any]] = Depends(lambda: None),
     superadmin_id: Optional[str] = Query(None, description="ID del Super Administrador"),
     x_user_role: Optional[int] = Header(None, alias="X-User-Role"),
 ) -> Dict[str, Any]:

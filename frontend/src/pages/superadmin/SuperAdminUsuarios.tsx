@@ -44,6 +44,18 @@ export const SuperAdminUsuarios: React.FC = () => {
     const [nuevoRol, setNuevoRol] = useState<number>(2);
     const [guardandoRol, setGuardandoRol] = useState(false);
 
+    const getErrorMessage = (error: any, fallback: string): string => {
+        const detail = error?.response?.data?.detail;
+        if (typeof detail === 'string') return detail;
+        if (Array.isArray(detail) && detail.length > 0) {
+            const first = detail[0];
+            if (typeof first === 'string') return first;
+            if (first && typeof first === 'object' && first.msg) return first.msg;
+        }
+        if (detail && typeof detail === 'object' && detail.msg) return detail.msg;
+        return error?.message || fallback;
+    };
+
     // Cargar usuarios matriculados
     const fetchUsuariosMatriculados = useCallback(async () => {
         if (!selectedOrgId) return;
@@ -55,7 +67,7 @@ export const SuperAdminUsuarios: React.FC = () => {
             setTotalMatriculados(res.total);
             setTotalPagesMatriculados(res.total_pages);
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al cargar usuarios matriculados');
+            toast.error(getErrorMessage(error, 'Error al cargar usuarios matriculados'));
         } finally {
             setLoadingMatriculados(false);
         }
@@ -71,7 +83,7 @@ export const SuperAdminUsuarios: React.FC = () => {
             setTotalSinProg(res.total);
             setTotalPagesSinProg(res.total_pages);
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al cargar usuarios sin programa');
+            toast.error(getErrorMessage(error, 'Error al cargar usuarios sin programa'));
         } finally {
             setLoadingSinProg(false);
         }
@@ -102,7 +114,7 @@ export const SuperAdminUsuarios: React.FC = () => {
                 fetchUsuariosSinPrograma();
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al actualizar estado del usuario');
+            toast.error(getErrorMessage(error, 'Error al actualizar estado del usuario'));
         }
     };
 
@@ -120,7 +132,7 @@ export const SuperAdminUsuarios: React.FC = () => {
                 fetchUsuariosSinPrograma();
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al cambiar rol del usuario');
+            toast.error(getErrorMessage(error, 'Error al cambiar rol del usuario'));
         } finally {
             setGuardandoRol(false);
         }
@@ -138,7 +150,7 @@ export const SuperAdminUsuarios: React.FC = () => {
             fetchUsuariosSinPrograma();
             fetchUsuariosMatriculados();
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al matricular usuario');
+            toast.error(getErrorMessage(error, 'Error al matricular usuario'));
         } finally {
             setMatriculando(false);
         }
@@ -446,7 +458,7 @@ export const SuperAdminUsuarios: React.FC = () => {
                             <select
                                 id="prog-select-matricula"
                                 value={selectedMatriculaProg}
-                                onChange={(e) => setSelectedMatriculaProg(Number(e.target.value))}
+                                onChange={(e) => setSelectedMatriculaProg(e.target.value ? Number(e.target.value) : '')}
                                 className="w-full h-11 px-3 bg-gray-50 border border-gray-300 rounded-lg text-sm text-gray-800 focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                             >
                                 <option value="">-- Seleccione un programa --</option>

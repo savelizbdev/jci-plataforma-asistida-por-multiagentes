@@ -117,6 +117,11 @@ class SuperAdminService:
                 .eq("id_programa", id_programa)\
                 .execute()
             if existe.data:
+                self.supabase.table("usuario_programa")\
+                    .update({"estado": True})\
+                    .eq("id_usuario", id_usuario)\
+                    .eq("id_programa", id_programa)\
+                    .execute()
                 return True
 
             res = self.supabase.table("usuario_programa")\

@@ -69,6 +69,18 @@ export const SuperAdminReportes: React.FC = () => {
     const progIdActivo = selectedProgId === 'todos' ? null : selectedProgId;
     const progActual = programas.find((p) => p.id_programa === progIdActivo);
 
+    const getErrorMessage = (error: any, fallback: string): string => {
+        const detail = error?.response?.data?.detail;
+        if (typeof detail === 'string') return detail;
+        if (Array.isArray(detail) && detail.length > 0) {
+            const first = detail[0];
+            if (typeof first === 'string') return first;
+            if (first && typeof first === 'object' && first.msg) return first.msg;
+        }
+        if (detail && typeof detail === 'object' && detail.msg) return detail.msg;
+        return error?.message || fallback;
+    };
+
     // 1. Reporte de Todos los Emprendedores
     const handleGenerarTodosEmprendedores = async () => {
         if (!selectedOrgId) return;
@@ -83,7 +95,7 @@ export const SuperAdminReportes: React.FC = () => {
             descargarBlob(blob, `Reporte_Emprendedores_${etiqueta}.pdf`);
             toast.success('Reporte generado correctamente');
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al generar reporte');
+            toast.error(getErrorMessage(error, 'Error al generar reporte'));
         } finally {
             setGenerating(null);
         }
@@ -99,7 +111,7 @@ export const SuperAdminReportes: React.FC = () => {
             descargarBlob(blob, `Reporte_Comparativo_Mentores_${etiqueta}.pdf`);
             toast.success('Reporte comparativo generado correctamente');
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al generar reporte de mentores');
+            toast.error(getErrorMessage(error, 'Error al generar reporte de mentores'));
         } finally {
             setGenerating(null);
         }
@@ -122,7 +134,7 @@ export const SuperAdminReportes: React.FC = () => {
             descargarBlob(blob, `Reporte_Mentor_${mNom}.pdf`);
             toast.success('Reporte individual del mentor generado');
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al generar reporte del mentor');
+            toast.error(getErrorMessage(error, 'Error al generar reporte del mentor'));
         } finally {
             setGenerating(null);
         }
@@ -145,7 +157,7 @@ export const SuperAdminReportes: React.FC = () => {
             descargarBlob(blob, `Reporte_Emprendedor_${eNom}.pdf`);
             toast.success('Reporte individual del emprendedor generado');
         } catch (error: any) {
-            toast.error(error.response?.data?.detail || 'Error al generar reporte del emprendedor');
+            toast.error(getErrorMessage(error, 'Error al generar reporte del emprendedor'));
         } finally {
             setGenerating(null);
         }
