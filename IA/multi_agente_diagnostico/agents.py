@@ -11,7 +11,7 @@ import os
 from google.adk.agents import LlmAgent
 
 # Modelo LLM (por defecto gemini-2.5-flash)
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 
 root_agent = LlmAgent(
     name="DiagnosticoAgent",
