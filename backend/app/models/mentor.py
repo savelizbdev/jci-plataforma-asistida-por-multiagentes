@@ -46,6 +46,8 @@ class EmprendedorAsignado(BaseModel):
     celular: Optional[int] = None
     nombre_emprendimiento: Optional[str] = None
     rubro_emprendimiento: Optional[str] = None
+    nacionalidad: Optional[str] = None
+    municipio: Optional[str] = None
     
     class Config:
         from_attributes = True

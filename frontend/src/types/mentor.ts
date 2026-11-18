@@ -30,6 +30,8 @@ export interface EmprendedorAsignado {
     celular?: number;
     nombre_emprendimiento?: string;
     rubro_emprendimiento?: string;
+    nacionalidad?: string | null;
+    municipio?: string | null;
 }
 
 export interface DiagnosticoResumen {

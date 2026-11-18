@@ -17,6 +17,8 @@ export interface User {
     estado: boolean;
     habilitado_diag: boolean;
     celular?: string;
+    nacionalidad?: string | null;
+    municipio?: string | null;
 }
 
 export interface AuthResponse {

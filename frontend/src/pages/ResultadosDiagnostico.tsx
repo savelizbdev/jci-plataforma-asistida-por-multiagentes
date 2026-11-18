@@ -567,6 +567,24 @@ export const ResultadosDiagnostico = () => {
                                         {emp.rubro_emprendimiento}
                                     </span>
                                 )}
+                                <span className="text-neutral-400">|</span>
+                                {emp.nacionalidad && emp.municipio ? (
+                                    <>
+                                        <span className="text-xs font-semibold bg-slate-50 text-neutral-700 px-3 py-1 rounded-full border border-slate-200 flex items-center gap-1">
+                                            <span>👤</span>
+                                            <span>Emprendedor: <strong>{emp.nacionalidad}</strong></span>
+                                        </span>
+                                        <span className="text-xs font-semibold bg-teal-50 text-activa-dark-teal px-3 py-1 rounded-full border border-teal-200 flex items-center gap-1">
+                                            <span>📍</span>
+                                            <span>Emprendimiento: <strong>{emp.municipio}</strong> (La Paz)</span>
+                                        </span>
+                                    </>
+                                ) : (
+                                    <span className="text-xs font-bold bg-amber-50 text-activa-amber px-3 py-1 rounded-full border border-amber-200 flex items-center gap-1">
+                                        <span>📍</span>
+                                        <span>Ubicación Emprendimiento / Nacionalidad: PENDIENTE</span>
+                                    </span>
+                                )}
                             </div>
                         </div>
                     );

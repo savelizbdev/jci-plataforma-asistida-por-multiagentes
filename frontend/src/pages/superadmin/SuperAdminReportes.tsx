@@ -237,7 +237,7 @@ export const SuperAdminReportes: React.FC = () => {
                                     </div>
                                     <h3 className="text-base font-bold text-gray-900 mb-1">Reporte de Emprendedores</h3>
                                     <p className="text-xs text-gray-500 mb-4">
-                                        Descarga el consolidado de participantes evaluados y sin diagnóstico en{' '}
+                                        Descarga el consolidado con procedencia geográfica (Nacionalidad y Municipio o PENDIENTE) de participantes evaluados y sin diagnóstico en{' '}
                                         <span className="font-semibold text-gray-700">
                                             {progActual ? progActual.nombre_programa : 'todos los programas de ' + (orgActual?.nombre || '')}
                                         </span>.

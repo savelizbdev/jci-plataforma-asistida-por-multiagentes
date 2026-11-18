@@ -138,7 +138,7 @@ class ReporteService:
 
             # 4. Obtener información de usuarios (emprendedores) y emprendimientos
             usuarios_response = self.supabase.table("usuario") \
-                .select("id_usuario, nombre, apellido") \
+                .select("id_usuario, nombre, apellido, nacionalidad, municipio") \
                 .in_("id_usuario", emprendedor_ids) \
                 .execute()
             usuarios_dict = {u.get("id_usuario"): u for u in (usuarios_response.data or []) if u.get("id_usuario")}
@@ -172,6 +172,8 @@ class ReporteService:
                         nombre=u_info.get("nombre", "N/A"),
                         apellido=u_info.get("apellido", "N/A"),
                         emprendimiento=e_nombre,
+                        nacionalidad=u_info.get("nacionalidad"),
+                        municipio=u_info.get("municipio"),
                         promedio_general=None,
                         promedio_cf=None, promedio_gp=None, promedio_m=None,
                         promedio_v=None, promedio_tp=None, promedio_rh=None, promedio_ec=None,
@@ -207,6 +209,8 @@ class ReporteService:
                     nombre=u_info.get("nombre", "N/A"),
                     apellido=u_info.get("apellido", "N/A"),
                     emprendimiento=e_nombre,
+                    nacionalidad=u_info.get("nacionalidad"),
+                    municipio=u_info.get("municipio"),
                     promedio_general=round(float(prom_gen), 1),
                     promedio_cf=round(cf, 1),
                     promedio_gp=round(gp, 1),
@@ -334,7 +338,7 @@ class ReporteService:
                     )
 
                 u_resp = self.supabase.table("usuario") \
-                    .select("id_usuario, nombre, apellido") \
+                    .select("id_usuario, nombre, apellido, nacionalidad, municipio") \
                     .in_("id_usuario", emp_ids) \
                     .eq("id_rol", 2) \
                     .execute()
@@ -379,6 +383,8 @@ class ReporteService:
                             nombre=u.get("nombre", "N/A"),
                             apellido=u.get("apellido", "N/A"),
                             emprendimiento=e_nom,
+                            nacionalidad=u.get("nacionalidad"),
+                            municipio=u.get("municipio"),
                             promedio_general=None,
                             promedio_cf=None, promedio_gp=None, promedio_m=None,
                             promedio_v=None, promedio_tp=None, promedio_rh=None, promedio_ec=None,
@@ -413,6 +419,8 @@ class ReporteService:
                         nombre=u.get("nombre", "N/A"),
                         apellido=u.get("apellido", "N/A"),
                         emprendimiento=e_nom,
+                        nacionalidad=u.get("nacionalidad"),
+                        municipio=u.get("municipio"),
                         promedio_general=round(float(prom_gen), 1),
                         promedio_cf=round(cf, 1),
                         promedio_gp=round(gp, 1),
@@ -443,7 +451,7 @@ class ReporteService:
                 diagnosticos = []
                 if all_emp_ids:
                     u_resp = self.supabase.table("usuario") \
-                        .select("id_usuario, nombre, apellido") \
+                        .select("id_usuario, nombre, apellido, nacionalidad, municipio") \
                         .in_("id_usuario", all_emp_ids) \
                         .eq("id_rol", 2) \
                         .execute()
@@ -476,6 +484,8 @@ class ReporteService:
                             nombre=u.get("nombre", "N/A"),
                             apellido=u.get("apellido", "N/A"),
                             emprendimiento=prog_nom,
+                            nacionalidad=u.get("nacionalidad"),
+                            municipio=u.get("municipio"),
                             promedio_general=None,
                             promedio_cf=None, promedio_gp=None, promedio_m=None,
                             promedio_v=None, promedio_tp=None, promedio_rh=None, promedio_ec=None,
@@ -510,6 +520,8 @@ class ReporteService:
                         nombre=u.get("nombre", "N/A"),
                         apellido=u.get("apellido", "N/A"),
                         emprendimiento=prog_nom,
+                        nacionalidad=u.get("nacionalidad"),
+                        municipio=u.get("municipio"),
                         promedio_general=round(float(prom_gen), 1),
                         promedio_cf=round(cf, 1),
                         promedio_gp=round(gp, 1),
@@ -1038,53 +1050,65 @@ class ReporteService:
                 s['body']))
             story.append(Spacer(1, 0.1 * inch))
 
-            # Encabezados de la tabla
-            header_row = ['Emprendedor', 'Emprendimiento', 'Prom.',
+            # Encabezados de la tabla (Spec 005: Nacionalidad y Municipio clarificados)
+            header_row = ['Emprendedor', 'Emprendimiento', 'Nac. Emprendedor', 'Mun. Emprendimiento', 'Prom.',
                           'CF', 'GP', 'M', 'V', 'TP', 'RH', 'EC']
             emp_rows = [header_row]
-            for emp in reporte_data.emprendedores:
-                if emp.estado_diagnostico == "Sin diagnóstico" or emp.num_diagnosticos == 0 or emp.promedio_general is None:
-                    emp_rows.append([
-                        f'{emp.nombre} {emp.apellido}',
-                        emp.emprendimiento or 'N/A',
-                        'Sin diagnóstico',
-                        '-', '-', '-', '-', '-', '-', '-'
-                    ])
-                else:
-                    emp_rows.append([
-                        f'{emp.nombre} {emp.apellido}',
-                        emp.emprendimiento or 'N/A',
-                        f'{emp.promedio_general}',
-                        f'{emp.promedio_cf}',
-                        f'{emp.promedio_gp}',
-                        f'{emp.promedio_m}',
-                        f'{emp.promedio_v}',
-                        f'{emp.promedio_tp}',
-                        f'{emp.promedio_rh}',
-                        f'{emp.promedio_ec}',
-                    ])
-
-            col_w = [1.3 * inch, 1.3 * inch, 0.55 * inch,
-                     0.45 * inch, 0.45 * inch, 0.45 * inch,
-                     0.45 * inch, 0.45 * inch, 0.45 * inch, 0.45 * inch]
-            emp_table = Table(emp_rows, colWidths=col_w)
-
             emp_style_cmds = [
                 # Header
                 ('BACKGROUND', (0, 0), (-1, 0), self.NAVY),
                 ('TEXTCOLOR', (0, 0), (-1, 0), self.WHITE),
                 ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
                 # Body
                 ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-                ('FONTSIZE', (0, 1), (-1, -1), 8),
+                ('FONTSIZE', (0, 1), (-1, -1), 7.5),
                 ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('ALIGN', (0, 1), (1, -1), 'LEFT'),
                 ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('TOPPADDING', (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
                 ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.HexColor('#D1D5DB')),
                 ('LINEAFTER', (0, 0), (-1, -1), 0.3, colors.HexColor('#E5E7EB')),
             ]
+
+            for row_idx, emp in enumerate(reporte_data.emprendedores, start=1):
+                es_sin_diag = emp.estado_diagnostico == "Sin diagnóstico" or emp.num_diagnosticos == 0 or emp.promedio_general is None
+                prom_str = 'Sin diagnóstico' if es_sin_diag else f'{emp.promedio_general}'
+                cf_str = '-' if es_sin_diag else f'{emp.promedio_cf}'
+                gp_str = '-' if es_sin_diag else f'{emp.promedio_gp}'
+                m_str = '-' if es_sin_diag else f'{emp.promedio_m}'
+                v_str = '-' if es_sin_diag else f'{emp.promedio_v}'
+                tp_str = '-' if es_sin_diag else f'{emp.promedio_tp}'
+                rh_str = '-' if es_sin_diag else f'{emp.promedio_rh}'
+                ec_str = '-' if es_sin_diag else f'{emp.promedio_ec}'
+
+                nac = emp.nacionalidad
+                mun = emp.municipio
+                es_pendiente = not nac or not mun
+
+                if es_pendiente:
+                    emp_rows.append([
+                        f'{emp.nombre} {emp.apellido}',
+                        emp.emprendimiento or 'N/A',
+                        'PENDIENTE', '',
+                        prom_str, cf_str, gp_str, m_str, v_str, tp_str, rh_str, ec_str
+                    ])
+                    # RF-14: Combinar celdas 2 y 3 (Nacionalidad y Municipio) con texto PENDIENTE
+                    emp_style_cmds.append(('SPAN', (2, row_idx), (3, row_idx)))
+                    emp_style_cmds.append(('TEXTCOLOR', (2, row_idx), (3, row_idx), colors.HexColor('#E8A82E')))
+                    emp_style_cmds.append(('FONTNAME', (2, row_idx), (3, row_idx), 'Helvetica-Bold'))
+                else:
+                    emp_rows.append([
+                        f'{emp.nombre} {emp.apellido}',
+                        emp.emprendimiento or 'N/A',
+                        nac, mun,
+                        prom_str, cf_str, gp_str, m_str, v_str, tp_str, rh_str, ec_str
+                    ])
+
+            col_w = [1.1 * inch, 1.1 * inch, 0.75 * inch, 0.75 * inch, 0.45 * inch,
+                     0.38 * inch, 0.38 * inch, 0.38 * inch, 0.38 * inch, 0.38 * inch, 0.38 * inch, 0.38 * inch]
+            emp_table = Table(emp_rows, colWidths=col_w)
             # Filas alternadas
             for i in range(1, len(emp_rows), 2):
                 emp_style_cmds.append(
@@ -1379,7 +1403,7 @@ class ReporteService:
         try:
             # 1. Obtener usuario
             usuario_response = self.supabase.table("usuario") \
-                .select("nombre, apellido") \
+                .select("nombre, apellido, nacionalidad, municipio") \
                 .eq("id_usuario", request.id_emprendedor) \
                 .execute()
                 
@@ -1452,6 +1476,8 @@ class ReporteService:
                 apellido_emprendedor=usuario["apellido"],
                 nombre_emprendimiento=emprendimiento.get("nombre") or "Emprendimiento",
                 rubro=emprendimiento.get("rubro") or "General",
+                nacionalidad=usuario.get("nacionalidad"),
+                municipio=usuario.get("municipio"),
                 resultado=ultimo.get("resultado") or "APROBADO",
                 fecha_diagnostico=fecha_diag,
                 diagnostico_general=diag_gen,
@@ -1549,9 +1575,13 @@ class ReporteService:
             elif data.resultado == "OBSERVADO":
                 color_resultado = colors.HexColor('#C0392B')
 
+            nac_str = data.nacionalidad if data.nacionalidad else "PENDIENTE"
+            mun_str = f"{data.municipio} (La Paz)" if data.municipio else "PENDIENTE"
             ficha_left = [
                 [Paragraph("EMPRENDEDOR/A", style_card_label), Paragraph(f"{data.nombre_emprendedor} {data.apellido_emprendedor}", style_card_val)],
+                [Paragraph("NAC. EMPRENDEDOR", style_card_label), Paragraph(nac_str, style_card_val)],
                 [Paragraph("EMPRENDIMIENTO", style_card_label), Paragraph(data.nombre_emprendimiento, style_card_val)],
+                [Paragraph("MUN. EMPRENDIMIENTO", style_card_label), Paragraph(mun_str, style_card_val)],
                 [Paragraph("RUBRO", style_card_label), Paragraph(data.rubro, style_card_val)],
                 [Paragraph("FECHA EVALUACIÓN", style_card_label), Paragraph(fecha_str, style_card_val)],
             ]
@@ -1926,7 +1956,7 @@ class ReporteService:
 
             # 4. Usuarios y emprendimientos
             usuarios_resp = self.supabase.table("usuario") \
-                .select("id_usuario, nombre, apellido") \
+                .select("id_usuario, nombre, apellido, nacionalidad, municipio") \
                 .in_("id_usuario", emp_ids) \
                 .execute()
             usuarios_dict = {u["id_usuario"]: u for u in (usuarios_resp.data or [])}
@@ -1962,6 +1992,8 @@ class ReporteService:
                     nombre=u.get("nombre", "N/A"),
                     apellido=u.get("apellido", "N/A"),
                     emprendimiento=emp_dict.get(emp_id, "N/A"),
+                    nacionalidad=u.get("nacionalidad"),
+                    municipio=u.get("municipio"),
                     promedio_general=round(sum(areas_sum.values()) / (total * 7), 1),
                     promedio_cf=round(areas_sum["cf"] / total, 1),
                     promedio_gp=round(areas_sum["gp"] / total, 1),

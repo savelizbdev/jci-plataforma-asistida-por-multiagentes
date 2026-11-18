@@ -212,7 +212,7 @@ class MentorService:
             
             # Obtener datos de los emprendedores
             usuarios_response = self.supabase.table("usuario") \
-                .select("id_usuario, nombre, apellido, habilitado_diag, celular") \
+                .select("id_usuario, nombre, apellido, habilitado_diag, celular, nacionalidad, municipio") \
                 .in_("id_usuario", emprendedores_ids) \
                 .execute()
             

@@ -116,7 +116,7 @@ class AuthService:
         try:
             # Consulta para obtener el usuario
             response = self.supabase.table("usuario").select(
-                "id_usuario, email, nombre, apellido, id_rol, estado, habilitado_diag"
+                "id_usuario, email, nombre, apellido, id_rol, estado, habilitado_diag, celular, nacionalidad, municipio"
             ).eq("email", email).execute()
             
             if response.data and len(response.data) > 0:
@@ -132,7 +132,10 @@ class AuthService:
                     id_rol=user_data["id_rol"],
                     rol=rol_nombre,
                     estado=user_data.get("estado", True),
-                    habilitado_diag=user_data.get("habilitado_diag", False)
+                    habilitado_diag=user_data.get("habilitado_diag", False),
+                    celular=user_data.get("celular"),
+                    nacionalidad=user_data.get("nacionalidad"),
+                    municipio=user_data.get("municipio")
                 )
             
             return None
@@ -155,7 +158,7 @@ class AuthService:
         """
         try:
             response = self.supabase.table("usuario").select(
-                "id_usuario, email, nombre, apellido, id_rol, estado, habilitado_diag"
+                "id_usuario, email, nombre, apellido, id_rol, estado, habilitado_diag, celular, nacionalidad, municipio"
             ).eq("id_usuario", user_id).execute()
             
             if response.data and len(response.data) > 0:
@@ -171,7 +174,10 @@ class AuthService:
                     id_rol=user_data["id_rol"],
                     rol=rol_nombre,
                     estado=user_data.get("estado", True),
-                    habilitado_diag=user_data.get("habilitado_diag", False)
+                    habilitado_diag=user_data.get("habilitado_diag", False),
+                    celular=user_data.get("celular"),
+                    nacionalidad=user_data.get("nacionalidad"),
+                    municipio=user_data.get("municipio")
                 )
             
             return None
@@ -219,7 +225,7 @@ class AuthService:
             from app.services.org_filter import get_admin_org_user_ids
 
             query = self.supabase.table("usuario").select(
-                "id_usuario, email, nombre, apellido, id_rol, estado, habilitado_diag, celular"
+                "id_usuario, email, nombre, apellido, id_rol, estado, habilitado_diag, celular, nacionalidad, municipio"
             )
 
             # Si se proporciona admin_id, filtrar solo los usuarios de su organización
@@ -249,7 +255,9 @@ class AuthService:
                         rol=rol_nombre,
                         estado=user_data.get("estado", True),
                         habilitado_diag=user_data.get("habilitado_diag", False),
-                        celular=user_data.get("celular")
+                        celular=user_data.get("celular"),
+                        nacionalidad=user_data.get("nacionalidad"),
+                        municipio=user_data.get("municipio")
                     ))
             
             return users
@@ -357,4 +365,56 @@ class AuthService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error al alternar estado del usuario: {str(e)}"
+            )
+
+    async def update_user_ubicacion(self, user_id: str, nacionalidad: str, municipio: str) -> UserResponse:
+        """
+        Registra la nacionalidad y municipio del emprendedor (Spec 005)
+        - Valida que el usuario exista
+        - Valida inmutabilidad: si ya tiene nacionalidad o municipio, retorna 400
+        - Actualiza atómicamente y retorna UserResponse
+        """
+        try:
+            # 1. Obtener usuario existente
+            user = await self.get_user_by_id(user_id)
+            if user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Usuario no encontrado"
+                )
+            
+            # 2. Inmutabilidad: si ya tenía datos registrados, rechazar
+            if user.nacionalidad or user.municipio:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="La ubicación geográfica ya fue registrada previamente y no puede ser modificada."
+                )
+            
+            # 3. Persistir en mayúsculas
+            update_data = {
+                "nacionalidad": nacionalidad.strip().upper(),
+                "municipio": municipio.strip().upper()
+            }
+            
+            response = self.supabase.table("usuario").update(update_data).eq("id_usuario", user_id).execute()
+            if not response.data or len(response.data) == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Error al persistir la ubicación geográfica en la base de datos"
+                )
+            
+            updated_user = await self.get_user_by_id(user_id)
+            if updated_user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Error al recuperar el usuario actualizado"
+                )
+            
+            return updated_user
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error al registrar ubicación geográfica: {str(e)}"
             )

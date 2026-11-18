@@ -137,6 +137,14 @@ export const SuperAdminDiagnosticos: React.FC = () => {
                                     <thead className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wider text-left">
                                         <tr>
                                             <th className="px-6 py-3.5">Emprendedor</th>
+                                            <th className="px-6 py-3.5">
+                                                <span>Nac. Emprendedor</span>
+                                                <span className="text-[10px] text-gray-400 block font-normal normal-case">(Origen)</span>
+                                            </th>
+                                            <th className="px-6 py-3.5">
+                                                <span>Mun. Emprendimiento</span>
+                                                <span className="text-[10px] text-gray-400 block font-normal normal-case">(Dpto. La Paz)</span>
+                                            </th>
                                             <th className="px-6 py-3.5">Programa</th>
                                             <th className="px-6 py-3.5 text-center">Estado</th>
                                             <th className="px-6 py-3.5 text-center">Puntaje Global</th>
@@ -155,6 +163,28 @@ export const SuperAdminDiagnosticos: React.FC = () => {
                                                         <div className="text-xs text-gray-500">{item.emprendimiento}</div>
                                                     )}
                                                 </td>
+                                                {item.nacionalidad && item.municipio ? (
+                                                    <>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                                            <div className="flex items-center space-x-1.5">
+                                                                <span className="text-xs text-gray-400">👤</span>
+                                                                <span>{item.nacionalidad}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                                                            <div className="flex items-center space-x-1.5">
+                                                                <span className="text-xs text-activa-teal">📍</span>
+                                                                <span>{item.municipio}</span>
+                                                            </div>
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <td colSpan={2} className="px-6 py-4 text-center whitespace-nowrap">
+                                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-activa-amber border border-amber-200">
+                                                            Ubicación / Nac.: PENDIENTE
+                                                        </span>
+                                                    </td>
+                                                )}
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-1 rounded-full">
                                                         {item.nombre_programa}

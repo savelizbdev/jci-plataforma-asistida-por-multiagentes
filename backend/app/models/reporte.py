@@ -57,6 +57,8 @@ class EmprendedorReporte(BaseModel):
     nombre: str
     apellido: str
     emprendimiento: Optional[str]
+    nacionalidad: Optional[str] = None
+    municipio: Optional[str] = None
     promedio_general: Optional[float] = None
     promedio_cf: Optional[float] = None
     promedio_gp: Optional[float] = None
@@ -120,6 +122,8 @@ class ReporteDataEmprendedor(BaseModel):
     apellido_emprendedor: str
     nombre_emprendimiento: str
     rubro: str
+    nacionalidad: Optional[str] = None
+    municipio: Optional[str] = None
     resultado: str = "APROBADO"
     fecha_diagnostico: Optional[datetime] = None
     diagnostico_general: str = ""

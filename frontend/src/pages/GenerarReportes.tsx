@@ -214,6 +214,7 @@ export const GenerarReportes = () => {
                                     <p className="font-semibold mb-1">El reporte incluirá:</p>
                                     <ul className="list-disc list-inside space-y-0.5">
                                         <li>Estadísticas de emprendedores asignados</li>
+                                        <li>Ubicación territorial (Nacionalidad y Municipio o PENDIENTE)</li>
                                         <li>Promedios por área de negocio</li>
                                         <li>Gráficos: barras, líneas y radar</li>
                                         <li>Tasa de aprobado y detalles individuales</li>

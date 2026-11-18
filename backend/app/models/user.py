@@ -16,6 +16,8 @@ class UserBase(BaseModel):
     celular: Optional[int] = None
     estado: Optional[bool] = None
     habilitado_diag: Optional[bool] = True
+    nacionalidad: Optional[str] = None
+    municipio: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -52,6 +54,8 @@ class UserResponse(BaseModel):
     estado: bool
     habilitado_diag: bool
     celular: Optional[int] = None
+    nacionalidad: Optional[str] = None
+    municipio: Optional[str] = None
     
     class Config:
         from_attributes = True

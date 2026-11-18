@@ -43,6 +43,8 @@ export interface DiagnosticoSupervisionItem {
     nombre: string;
     apellido: string;
     emprendimiento?: string;
+    nacionalidad?: string | null;
+    municipio?: string | null;
     id_programa: number;
     nombre_programa: string;
     estado_diagnostico: string;

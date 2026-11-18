@@ -81,6 +81,8 @@ class DiagnosticoSupervisionItem(BaseModel):
     nombre: str
     apellido: str
     emprendimiento: Optional[str] = None
+    nacionalidad: Optional[str] = None
+    municipio: Optional[str] = None
     id_programa: int
     nombre_programa: str
     estado_diagnostico: str = "Sin diagnóstico"

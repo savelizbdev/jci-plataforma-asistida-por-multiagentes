@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing import Dict, Any, Optional
 from app.services.auth_service import AuthService
 from app.models.user import UserResponse
+from app.models.user_update import UbicacionGeograficaRequest
 
 
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
@@ -269,3 +270,18 @@ async def toggle_user_status(user_id: str):
     """
     auth_service = AuthService()
     return await auth_service.toggle_user_status(user_id)
+
+
+@router.put("/{user_id}/ubicacion", response_model=UserResponse)
+async def update_user_ubicacion(user_id: str, ubicacion_data: UbicacionGeograficaRequest):
+    """
+    Registra la ubicación geográfica del emprendedor (Spec 005)
+    Inmutable: si ya tiene ubicación registrada, rechaza la operación con HTTP 400.
+    """
+    auth_service = AuthService()
+    return await auth_service.update_user_ubicacion(
+        user_id=user_id,
+        nacionalidad=ubicacion_data.nacionalidad,
+        municipio=ubicacion_data.municipio
+    )
+

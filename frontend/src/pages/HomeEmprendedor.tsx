@@ -13,6 +13,7 @@ import { api } from '../services/api';
 import { obtenerMisTareas, marcarTareaCompletada, Tarea } from '../services/tareaService';
 import { programaService } from '../services/programaService';
 import { CodigoProgramaModal } from '../components/programas/CodigoProgramaModal';
+import { UbicacionGeograficaCard } from '../components/emprendedor/UbicacionGeograficaCard';
 import toast, { Toaster } from 'react-hot-toast';
 
 const menuItems: MenuItem[] = [
@@ -162,6 +163,16 @@ export const HomeEmprendedor = () => {
                         {habilitado ? 'Habilitada para diagnóstico' : 'En espera de diagnóstico'}
                     </div>
                 </div>
+
+                {/* ── Tarjeta de Ubicación Geográfica (Spec 005) ───────────────── */}
+                {user && (
+                    <div className="mb-8 sm:mb-10">
+                        <UbicacionGeograficaCard
+                            user={user}
+                            onUbicacionActualizada={(updatedUser) => setUser(updatedUser)}
+                        />
+                    </div>
+                )}
 
                 {/* ── KPI Cards ───────────────────────────────────────────────── */}
                 <div className="grid grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-10">

@@ -73,7 +73,7 @@ const PANELS = [
             </svg>
         ),
         gradient: 'from-activa-coral to-activa-amber',
-        description: 'Reporte agregado de todos los emprendedores con estadísticas por área y evolución en el período seleccionado.',
+        description: 'Reporte agregado de todos los emprendedores con estadísticas por área, procedencia territorial (Nacionalidad y Municipio o PENDIENTE) y evolución en el período seleccionado.',
         badge: 'Global',
         badgeColor: 'bg-activa-coral/10 text-activa-coral',
     },

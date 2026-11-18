@@ -1,5 +1,6 @@
 """Modelos Pydantic para validación de datos"""
 from .user import User, UserCreate, UserResponse
+from .user_update import UserUpdateRequest, UbicacionGeograficaRequest
 from .role import Role
 from .emprendimiento import (
     Rubro,
@@ -12,6 +13,8 @@ __all__ = [
     "User", 
     "UserCreate", 
     "UserResponse", 
+    "UserUpdateRequest",
+    "UbicacionGeograficaRequest",
     "Role",
     "Rubro",
     "CreateEmprendimientoRequest",

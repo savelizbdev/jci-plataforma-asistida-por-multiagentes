@@ -67,4 +67,18 @@ export const userService = {
             );
         }
     },
+
+    /**
+     * Registra la ubicación geográfica del emprendedor (Spec 005)
+     */
+    async guardarUbicacion(userId: string, data: { nacionalidad: string; municipio: string }): Promise<User> {
+        try {
+            const response = await api.put<User>(`/auth/${userId}/ubicacion`, data);
+            return response.data;
+        } catch (error: any) {
+            throw new Error(
+                error.response?.data?.detail || 'Error al guardar la ubicación geográfica'
+            );
+        }
+    },
 };

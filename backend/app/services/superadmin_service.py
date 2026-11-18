@@ -497,7 +497,7 @@ class SuperAdminService:
 
             uids = list({str(r["id_usuario"]) for r in up_rows})
             users_res = self.supabase.table("usuario")\
-                .select("id_usuario, nombre, apellido, id_rol")\
+                .select("id_usuario, nombre, apellido, id_rol, nacionalidad, municipio")\
                 .in_("id_usuario", uids)\
                 .eq("id_rol", 2)\
                 .execute()
@@ -595,6 +595,8 @@ class SuperAdminService:
                             nombre=u.get("nombre") or "",
                             apellido=u.get("apellido") or "",
                             emprendimiento=nombre_emp,
+                            nacionalidad=u.get("nacionalidad"),
+                            municipio=u.get("municipio"),
                             id_programa=pair["id_programa"],
                             nombre_programa=pair["nombre_programa"],
                             estado_diagnostico="Con diagnóstico",
@@ -620,6 +622,8 @@ class SuperAdminService:
                             nombre=u.get("nombre") or "",
                             apellido=u.get("apellido") or "",
                             emprendimiento=nombre_emp,
+                            nacionalidad=u.get("nacionalidad"),
+                            municipio=u.get("municipio"),
                             id_programa=pair["id_programa"],
                             nombre_programa=pair["nombre_programa"],
                             estado_diagnostico="Sin diagnóstico",
